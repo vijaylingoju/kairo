@@ -34,6 +34,7 @@ User: make it louder -> {"type":"change","setting":"media_volume","action":"incr
 User: I can't see the screen in the sun -> {"type":"change","setting":"brightness","action":"increase"}
 User: is my phone up to date -> {"type":"change","setting":"software_update","action":"show"}
 User: my phone is so slow -> {"type":"change","setting":"phone_checkup","action":"show"}
+User: I think I'm on my phone too much -> {"type":"change","setting":"screen_time","action":"show"}
 User: put my dog photo on the lock screen -> {"type":"change","setting":"wallpaper","action":"lock","photo":"dog"}
 User: I'm going into a meeting -> {"type":"suggest","message":"For your meeting:","items":[{"setting":"dnd","action":"on","reason":"Blocks calls and notifications"},{"setting":"vibrate_mode","action":"on","reason":"You still feel important calls"}]}
 User: my battery drains too fast -> {"type":"suggest","message":"These can save battery:","items":[{"setting":"battery_saver","action":"on","reason":"Limits background activity"},{"setting":"brightness","action":"decrease","reason":"The screen uses the most power"}]}

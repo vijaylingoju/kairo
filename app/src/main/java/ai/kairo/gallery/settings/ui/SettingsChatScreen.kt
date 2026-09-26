@@ -9,6 +9,8 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -82,6 +84,7 @@ private val EXAMPLES = listOf(
     "How much storage is left?",
     "Set a dog photo as my wallpaper",
     "My phone is slow",
+    "How much screen time today?",
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -166,6 +169,8 @@ private fun EmptyState(onExample: (String) -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
+            // Still centered when the examples fit; scrolls when they don't (small screens, big text).
+            .verticalScroll(rememberScrollState())
             .padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -248,7 +253,7 @@ private fun AssistantMessage(
                                     )
                                 }
                                 FilledTonalButton(
-                                    onClick = { vm.apply(s.settingId, s.action) },
+                                    onClick = { vm.apply(s.settingId, s.action, s.value) },
                                     modifier = Modifier.padding(start = 8.dp),
                                 ) { Text(s.buttonLabel) }
                             }
@@ -372,17 +377,22 @@ private fun InputBar(enabled: Boolean, onSend: (String) -> Unit, onMic: () -> Un
 }
 
 private fun Context.launch(spec: IntentSpec) {
+    val pkg = spec.targetPackage ?: packageName
     for (action in listOf(spec.action) + spec.fallbacks) {
-        val intent = Intent(action).apply {
-            if (spec.withPackageUri) data = Uri.parse("package:$packageName")
-        }
-        try {
-            startActivity(intent)
-            return
-        } catch (e: ActivityNotFoundException) {
-            // try the next one
-        } catch (e: SecurityException) {
-            // another brand's screen that exists here but isn't open to other apps: try the next one
+        // With a package: that app's own page first, then the general screen if this phone has no per-app page.
+        for (withPackage in if (spec.withPackageUri) listOf(true, false) else listOf(false)) {
+            val intent = Intent(action).apply {
+                if (withPackage) data = Uri.parse("package:$pkg")
+                spec.targetPackage?.let { putExtra(Intent.EXTRA_PACKAGE_NAME, it) }
+            }
+            try {
+                startActivity(intent)
+                return
+            } catch (e: ActivityNotFoundException) {
+                // try the next one
+            } catch (e: SecurityException) {
+                // another brand's screen that exists here but isn't open to other apps: try the next one
+            }
         }
     }
     Toast.makeText(this, "This screen isn't available on this phone", Toast.LENGTH_SHORT).show()

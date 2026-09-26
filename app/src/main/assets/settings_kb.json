@@ -369,6 +369,69 @@
       }
     },
     {
+      "id": "screen_time",
+      "name": "Screen time",
+      "tier": "info",
+      "synonyms": ["screen time", "screentime", "phone usage", "app usage", "usage today", "time on my phone", "time on the phone", "hours on my phone", "how long have i used", "how long was i on", "most used apps", "most used app", "which apps do i use", "which app do i use", "digital wellbeing", "wellbeing", "well being", "addicted", "addiction", "too much time", "phone too much", "unlocks", "unlocked my phone", "how many times did i unlock", "doomscrolling", "doom scrolling", "spend on my phone", "spent on my phone"],
+      "actions": ["show"],
+      "guide": {
+        "intents": ["com.google.android.apps.wellbeing.action.APP_USAGE_DASHBOARD", "com.google.android.apps.wellbeing.action.HOME"],
+        "steps": ["Open Settings", "Tap Digital Wellbeing & parental controls", "Tap Dashboard"]
+      }
+    },
+    {
+      "id": "app_timer",
+      "name": "App timer",
+      "tier": "panel",
+      "panel": "com.google.android.apps.wellbeing.action.APP_USAGE_DASHBOARD",
+      "synonyms": ["app timer", "app timers", "app limit", "app limits", "time limit", "time limits", "limit apps", "limit my apps", "limit an app", "usage limit"],
+      "actions": ["open"],
+      "note": "Opening Digital Wellbeing, where you can set a daily timer for any app…",
+      "guide": {
+        "intents": ["com.google.android.apps.wellbeing.action.HOME"],
+        "steps": ["Open Settings", "Tap Digital Wellbeing & parental controls", "Tap Dashboard", "Tap the timer next to an app"]
+      }
+    },
+    {
+      "id": "bedtime_mode",
+      "name": "Bedtime mode",
+      "tier": "panel",
+      "panel": "com.google.android.apps.wellbeing.action.WIND_DOWN",
+      "synonyms": ["bedtime mode", "bedtime", "bed time", "wind down", "sleep mode", "sleep schedule", "grey screen at night", "grayscale at night"],
+      "actions": ["open"],
+      "note": "Opening Bedtime mode. It can silence your phone and turn the screen grey at night…",
+      "guide": {
+        "intents": ["com.google.android.apps.wellbeing.action.HOME", "android.settings.ZEN_MODE_SETTINGS"],
+        "steps": ["Open Settings", "Tap Digital Wellbeing & parental controls", "Tap Bedtime mode"]
+      }
+    },
+    {
+      "id": "focus_mode",
+      "name": "Focus mode",
+      "tier": "panel",
+      "panel": "com.google.android.apps.wellbeing.action.FOCUS_MODE",
+      "synonyms": ["pause apps", "pause distracting apps", "distracting apps", "distractions", "distracted", "study mode", "concentrate", "block apps"],
+      "actions": ["open"],
+      "note": "Opening Focus mode. It pauses the apps you pick until you're done…",
+      "guide": {
+        "intents": ["com.google.android.apps.wellbeing.action.HOME"],
+        "steps": ["Open Settings", "Tap Digital Wellbeing & parental controls", "Tap Focus mode"]
+      }
+    },
+    {
+      "id": "app_info",
+      "name": "App info",
+      "tier": "panel",
+      "panel": "android.settings.MANAGE_APPLICATIONS_SETTINGS",
+      "synonyms": ["app info", "installed apps", "manage apps", "all apps", "uninstall", "uninstall apps", "uninstall an app", "app storage"],
+      "actions": ["open"],
+      "note": "Opening your list of apps…",
+      "guide": {
+        "intents": ["android.settings.APPLICATION_SETTINGS"],
+        "steps": ["Open Settings", "Tap Apps", "Pick an app"]
+      }
+    },
+    {
       "id": "battery_info",
       "name": "Battery",
       "tier": "info",

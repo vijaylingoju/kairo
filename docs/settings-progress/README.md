@@ -13,16 +13,18 @@ The assistant then changes the setting, opens the right system panel, or shows s
 | Area | Status |
 |---|---|
 | Chat UI (text + offline voice input) | ✅ Done |
-| Knowledge base of 33 entries (JSON) | ✅ Done |
+| Knowledge base of 38 entries (JSON) | ✅ Done |
 | Phone info answers: device, storage, battery, software update | ✅ Done, tested on phone (Gemma picks them in 1.6–3.5 s) |
 | Wallpaper from the gallery ("set my beach photo as wallpaper") | ✅ Done, tested on phone (home, lock, both) |
 | Slow / hot phone checkup + clean up cache, close apps, restart | ✅ Done, tested on phone (instant, no permissions) |
+| Wellbeing: screen time, top apps, unlocks, late-night use → app timer / Bedtime / Focus mode; biggest app cache in the checkup | ✅ Built, unit-tested · ⚠️ on the iQOO, HackTracker blocks the Usage access page, so the screen-time card itself is untested |
 | Keyword agent | ✅ Done, tested on phone |
 | Gemma (LLM) agent: picks setting + action (+ photo), keyword agent as fallback | ✅ Done, tested on phone |
 | Undo for every direct change (except wallpaper: confirm first instead) | ✅ Done |
 | Problem → suggestions (eye strain) | ✅ Done |
 | Single app: gallery home → Settings screen | ✅ Done |
-| Routing unit test | ✅ Passing (68 phrases) |
+| Routing unit test | ✅ Passing (78 phrases) |
+| Screen-time maths unit test (`UsageMathTest`) | ✅ Passing |
 | Commit to `feat/settings-handle` | ✅ Committed |
 | Floating guide card, AccessibilityService, QS tile, onboarding | ⬜ Not started |
 
@@ -68,14 +70,17 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 | `settings/SystemSettingsController.kt` | Brightness, font scale, timeout, rotation, touch sounds |
 | `settings/DeviceController.kt` | Volumes, silent/vibrate, Do Not Disturb, flashlight |
 | `settings/PhoneInfo.kt` | Read-only answers: phone info, storage, battery, software update, slow-phone checkup (+ `InfoFormat` helpers) |
+| `settings/Wellbeing.kt` | Screen time from Android's usage events (`UsageMath`: one app in front at a time, home screen not counted), `hasUsageAccess()`, `appLabel()` |
 | `settings/Wallpapers.kt` | Finds photos with the gallery search, then decodes (EXIF-rotated), center-crops to the screen and sets the tapped one |
 | `settings/ui/*` | Chat screen, ViewModel, `SettingsActivity` |
 | `app/src/test/.../SettingsKbRoutingTest.kt` | Runs real phrases through the real JSON |
 
-## Supported settings (28) + phone info (5)
+## Supported settings (32) + phone info (6)
 
 | Tier | Settings | How |
 |---|---|---|
+| **Info → wellbeing** (Usage access) | screen time | Today vs yesterday, unlocks, after-midnight use, top 3 apps. Suggests a timer for the top app (≥ 1 h), Bedtime mode (≥ 30 min after midnight), Focus mode (≥ 80 unlocks) |
+| **Panel** (Digital Wellbeing) | app timer, Bedtime mode, Focus mode, app info | Opens Google Digital Wellbeing's own screens. From a suggestion, the timer / app info page of that exact app |
 | **Info** (read-only) | phone info, storage, battery, software update | Card with facts + a button to the right screen. No permission needed |
 | **Info → suggestions** | phone checkup ("my phone is slow / hot") | Checks storage, free memory, temperature, battery saver, days since restart (and whether Kairo is indexing); suggests fixes only for what's wrong, else restart + cleanup |
 | **Direct** (confirm first, no Undo) | wallpaper (home, lock or both) | Up to 3 matching gallery photos; the tapped one is set. Apps can't read the current wallpaper, so there's nothing to restore |
@@ -87,6 +92,7 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 - *Modify system settings* (`WRITE_SETTINGS`): brightness, auto-brightness, text size, timeout, rotation, touch sounds.
 - *Do Not Disturb access* (`ACCESS_NOTIFICATION_POLICY`): silent mode, Do Not Disturb, and ring volume or vibrate in some states.
 - `SET_WALLPAPER` is granted at install (normal permission), so the wallpaper needs no prompt.
+- *Usage access* (`PACKAGE_USAGE_STATS`): screen time, and the "biggest app cache" line in the checkup (other apps' cache sizes are private without it).
 
 ## On-device test results (iQOO I2501, Android 16, OriginOS 6)
 
@@ -118,6 +124,11 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 | **Clean up junk and cache** / "clear cache" → vivo's cleaner (`PhoneCleanActivity2`). The very first time, iManager shows its user agreement instead | ✅ |
 | "my phone is getting hot", "my phone is very sluggish" → checkup instantly (keywords); "everything takes forever to open" → Gemma (6.7 s) → checkup | ✅ |
 | **Restart your phone** → guide steps | ✅ |
+| "How much screen time today?" (no Usage access) → Grant card → **Grant** opens `AppUsageAccessSettingsActivity` on Kairo's switch | ✅ (then covered by HackTracker's organiser-passcode screen) |
+| "turn on bedtime mode" → Digital Wellbeing `WindDownActivity`; "set an app timer" → `DashboardActivity` | ✅ |
+| "pause distracting apps" → Gemma suggests Focus mode → **Open Focus mode** → `FocusModeConfigActivity` | ✅ |
+| Checkup without Usage access → no "Biggest app cache" line, rest unchanged | ✅ |
+| Screen-time card, app timer for one app, "Clear X's cache" | ⬜ Needs Usage access (organiser passcode on this phone) or another phone |
 | Silent / DND actually switching | ⬜ Needs DND access granted first |
 | Ring volume; location / battery saver / hotspot deep links | ⬜ Not yet |
 
@@ -132,6 +143,9 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 - The marketing name and skin aren't in `Build`: `ro.vivo.product.release.name` = "iQOO 15", `ro.vivo.os.build.display.id` = "OriginOS 6" (readable by the app through `getprop`). `Build.MODEL` is only "I2501".
 - Apps can't check for OS updates (no public API, and Kairo has no INTERNET). The update card shows how old the security patch is and opens the updater.
 - **Slow phone:** asked "my phone is slow", Gemma returned generic tips (clean up, close apps) in 5.9 s without looking at the phone. Now any query the keywords route to the checkup skips Gemma, and the prompt tells Gemma to pick `phone_checkup` for slow/hot phones. Gemma still sometimes answers `suggest` with the checkup as one item among generic tips, so any Gemma answer that mentions `phone_checkup` runs the checkup instead.
+- **HackTracker** (`com.reskill.hacktracker`, the organisers' app: device admin + accessibility service + its own Usage access) puts an "Enter organiser passcode" screen over the Usage access page. Participants can't grant Usage access on this phone without the organisers.
+- The empty chat's example chips no longer fit on one screen (13 chips); the list now scrolls.
+- Digital Wellbeing (`com.google.android.apps.wellbeing`) is on the iQOO: `…action.APP_USAGE_DASHBOARD`, `…action.WIND_DOWN` (Bedtime mode), `…action.FOCUS_MODE`, and `android.settings.action.APP_USAGE_SETTINGS` + `EXTRA_PACKAGE_NAME` for one app's timer. The Usage access page accepts `package:ai.kairo.gallery` and opens on Kairo's own switch.
 - vivo's cleaner: `com.iqoo.secure.action.SPACE_MANAGER` → `com.vivo.imanager/…PhoneCleanActivity2`. It's also the first "Free up space" target of the storage card.
 - **Wallpaper:** one `setBitmap(FLAG_SYSTEM | FLAG_LOCK)` call changed only the home screen while the lock screen had vivo's live video wallpaper. Setting each screen in its own call fixes it.
 - **The iQOO currently has no CLIP model and no photos in `Pictures/Kairo`**, so gallery search (and the wallpaper feature) only find what's indexed. Two synthetic test pictures (`test_sunset_beach.jpg`, `test_mountains.jpg`) were added there for the wallpaper test.

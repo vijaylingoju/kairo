@@ -53,7 +53,7 @@ class SettingsChatViewModel(app: Application) : AndroidViewModel(app) {
         respond { agent.handle(query) }
     }
 
-    fun apply(settingId: String, action: String) = respond { agent.apply(settingId, action) }
+    fun apply(settingId: String, action: String, value: String? = null) = respond { agent.apply(settingId, action, value) }
 
     fun setWallpaper(photoUri: String, screen: String) = respond { agent.setWallpaper(photoUri, screen) }
 

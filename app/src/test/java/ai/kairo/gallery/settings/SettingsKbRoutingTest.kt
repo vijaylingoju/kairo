@@ -97,6 +97,17 @@ class SettingsKbRoutingTest {
             "close background apps" to ("close_apps" to "open"),
             "clear ram" to ("close_apps" to "open"),
             "restart my phone" to ("restart_phone" to "open"),
+            // Wellbeing
+            "how much screen time today" to ("screen_time" to "show"),
+            "which apps do I use the most" to ("screen_time" to "show"),
+            "I'm addicted to my phone" to ("screen_time" to "show"),
+            "how many times did I unlock my phone" to ("screen_time" to "show"),
+            "set an app timer" to ("app_timer" to "open"),
+            "turn on bedtime mode" to ("bedtime_mode" to "open"),
+            "pause distracting apps" to ("focus_mode" to "open"),
+            "uninstall an app" to ("app_info" to "open"),
+            "close all apps" to ("close_apps" to "open"),
+            "increase screen timeout" to ("screen_timeout" to "increase"),
             // ...without stealing these
             "wifi is slow" to ("wifi" to "open"),
             "internet is slow" to ("mobile_data" to "open"),

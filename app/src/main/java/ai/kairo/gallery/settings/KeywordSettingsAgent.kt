@@ -5,6 +5,8 @@ import android.hardware.camera2.CameraAccessException
 import android.media.AudioManager
 import android.provider.Settings
 import ai.kairo.gallery.settings.SettingIds.ALARM_VOLUME
+import ai.kairo.gallery.settings.SettingIds.APP_INFO
+import ai.kairo.gallery.settings.SettingIds.APP_TIMER
 import ai.kairo.gallery.settings.SettingIds.AUTO_BRIGHTNESS
 import ai.kairo.gallery.settings.SettingIds.AUTO_ROTATE
 import ai.kairo.gallery.settings.SettingIds.BRIGHTNESS
@@ -88,6 +90,7 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
     override suspend fun apply(settingId: String, action: String, value: String?): SettingsResponse =
         withContext(Dispatchers.IO) {
             val setting = kb[settingId] ?: return@withContext SettingsResponse.Info("I don't know that setting yet.")
+            if (value != null && settingId in APP_PAGES && isInstalled(value)) return@withContext appPage(setting, value)
             try {
                 when (setting.tier) {
                     Tier.DIRECT -> direct(setting, action, value)
@@ -350,6 +353,24 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
         action,
     )
 
+    private fun isInstalled(pkg: String) = runCatching { app.packageManager.getApplicationInfo(pkg, 0) }.isSuccess
+
+    /** One app's own page, e.g. from "Set a timer for Instagram" or "Clear WhatsApp's cache". [pkg] is its package. */
+    private fun appPage(setting: KbSetting, pkg: String): SettingsResponse {
+        val name = app.appLabel(pkg)
+        return if (setting.id == APP_TIMER) {
+            SettingsResponse.OpenPanel(
+                "Opening the timer for $name…",
+                IntentSpec(Settings.ACTION_APP_USAGE_SETTINGS, fallbacks = listOfNotNull(setting.panel), targetPackage = pkg),
+            )
+        } else {
+            SettingsResponse.OpenPanel(
+                "Opening $name's app info. Tap Storage, then Clear cache.",
+                IntentSpec(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, withPackageUri = true, targetPackage = pkg),
+            )
+        }
+    }
+
     private fun guide(setting: KbSetting, intro: String? = null): SettingsResponse {
         val g = setting.guide ?: return SettingsResponse.Info("I don't have a guide for ${setting.name} yet.")
         return SettingsResponse.Guide(
@@ -385,6 +406,9 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
 
         /** Need the "Modify system settings" grant. */
         val WRITE_SETTINGS = setOf(BRIGHTNESS, AUTO_BRIGHTNESS, FONT_SIZE, SCREEN_TIMEOUT, AUTO_ROTATE, TOUCH_SOUNDS)
+
+        /** Open a specific app's page when given its package. */
+        val APP_PAGES = setOf(APP_TIMER, APP_INFO)
 
         /** Always need Do Not Disturb access. */
         val POLICY_REQUIRED = setOf(SILENT_MODE, DND)

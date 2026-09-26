@@ -25,6 +25,10 @@ object SettingIds {
     const val CLEAN_UP = "clean_up"
     const val CLOSE_APPS = "close_apps"
     const val RESTART_PHONE = "restart_phone"
+    const val APP_TIMER = "app_timer"
+    const val APP_INFO = "app_info"
+    const val BEDTIME_MODE = "bedtime_mode"
+    const val FOCUS_MODE = "focus_mode"
 
     // Read-only (info tier)
     const val DEVICE_INFO = "device_info"
@@ -32,6 +36,7 @@ object SettingIds {
     const val BATTERY_INFO = "battery_info"
     const val SOFTWARE_UPDATE = "software_update"
     const val PHONE_CHECKUP = "phone_checkup"
+    const val SCREEN_TIME = "screen_time"
 }
 
 object Actions {
@@ -51,10 +56,12 @@ object Actions {
 /** An intent the UI should launch. Kept as data so the agent never needs an Activity. */
 data class IntentSpec(
     val action: String,
-    /** Adds `package:<our package>` as data — required by e.g. ACTION_MANAGE_WRITE_SETTINGS. */
+    /** Adds `package:<[targetPackage] or ours>` as data — required by e.g. ACTION_MANAGE_WRITE_SETTINGS. */
     val withPackageUri: Boolean = false,
     /** Tried in order if [action] doesn't resolve on this phone. */
     val fallbacks: List<String> = emptyList(),
+    /** Another app the screen is about (its timer, its app info). Also sent as EXTRA_PACKAGE_NAME. */
+    val targetPackage: String? = null,
 )
 
 data class UndoToken(val settingId: String, val previousValue: String)
@@ -65,6 +72,8 @@ data class Suggestion(
     val title: String,
     val reason: String,
     val buttonLabel: String,
+    /** Passed to [SettingsAgent.apply], e.g. the app a timer suggestion is for. */
+    val value: String? = null,
 )
 
 sealed interface SettingsResponse {

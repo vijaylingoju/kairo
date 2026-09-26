@@ -9,10 +9,12 @@ import android.hardware.display.DisplayManager
 import android.os.BatteryManager
 import android.os.Build
 import android.os.PowerManager
+import android.os.Process
 import android.os.SystemClock
 import android.os.storage.StorageManager
 import android.view.Display
 import ai.kairo.gallery.index.Indexer
+import ai.kairo.gallery.settings.SettingIds.APP_INFO
 import ai.kairo.gallery.settings.SettingIds.BATTERY_INFO
 import ai.kairo.gallery.settings.SettingIds.BATTERY_SAVER
 import ai.kairo.gallery.settings.SettingIds.BRIGHTNESS
@@ -21,6 +23,7 @@ import ai.kairo.gallery.settings.SettingIds.CLOSE_APPS
 import ai.kairo.gallery.settings.SettingIds.DEVICE_INFO
 import ai.kairo.gallery.settings.SettingIds.PHONE_CHECKUP
 import ai.kairo.gallery.settings.SettingIds.RESTART_PHONE
+import ai.kairo.gallery.settings.SettingIds.SCREEN_TIME
 import ai.kairo.gallery.settings.SettingIds.SOFTWARE_UPDATE
 import ai.kairo.gallery.settings.SettingIds.STORAGE_INFO
 import java.time.LocalDate
@@ -34,6 +37,7 @@ import kotlin.math.roundToInt
 class PhoneInfo(private val context: Context) {
 
     private val settings = SystemSettingsController(context)
+    private val wellbeing = Wellbeing(context)
 
     fun answer(setting: KbSetting): SettingsResponse? = when (setting.id) {
         DEVICE_INFO -> deviceInfo(setting)
@@ -41,6 +45,7 @@ class PhoneInfo(private val context: Context) {
         BATTERY_INFO -> batteryInfo(setting)
         SOFTWARE_UPDATE -> softwareUpdate(setting)
         PHONE_CHECKUP -> checkup()
+        SCREEN_TIME -> wellbeing.screenTime(setting)
         else -> null
     }
 
@@ -61,6 +66,20 @@ class PhoneInfo(private val context: Context) {
             val full = usedPercent >= FULL_STORAGE_PERCENT
             rows += "Storage" to "$usedPercent% used${warn(full)}"
             if (full) items += cleanUp("Storage is $usedPercent% full, and phones slow down when it's nearly full.")
+        }
+
+        // Only with Usage access: other apps' cache sizes are private otherwise.
+        biggestCache()?.let { (pkg, bytes) ->
+            val name = context.appLabel(pkg)
+            val big = bytes >= BIG_CACHE_BYTES
+            rows += "Biggest app cache" to "$name · ${InfoFormat.size(bytes)}${warn(big)}"
+            if (big) {
+                items += Suggestion(
+                    APP_INFO, Actions.OPEN, "Clear $name's cache",
+                    "It's holding ${InfoFormat.size(bytes)} of cache. On the next screen tap Storage, then Clear cache.",
+                    "Open", value = pkg,
+                )
+            }
         }
 
         val memory = memory()
@@ -226,6 +245,21 @@ class PhoneInfo(private val context: Context) {
         return "$maker $model".trim()
     }
 
+    /** The home-screen app holding the most cache, or null without Usage access. */
+    private fun biggestCache(): Pair<String, Long>? {
+        if (!context.hasUsageAccess()) return null
+        val stats = context.getSystemService(StorageStatsManager::class.java)
+        val user = Process.myUserHandle()
+        return context.packageManager
+            .queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
+            .map { it.activityInfo.packageName }
+            .distinct()
+            .mapNotNull { pkg ->
+                runCatching { pkg to stats.queryStatsForPackage(StorageManager.UUID_DEFAULT, pkg, user).cacheBytes }.getOrNull()
+            }
+            .maxByOrNull { it.second }
+    }
+
     /** Sticky broadcast: passing no receiver just returns the latest battery state. */
     private fun batteryState(): Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
 
@@ -273,6 +307,7 @@ class PhoneInfo(private val context: Context) {
         const val HOT_BRIGHTNESS_PERCENT = 50
         const val LOW_MEMORY_PERCENT = 15
         const val RESTART_AFTER_MS = 7 * 24 * 3600 * 1000L
+        const val BIG_CACHE_BYTES = 1_000_000_000L
         const val NO_VALUE = Int.MIN_VALUE
 
         val HEALTH = mapOf(
