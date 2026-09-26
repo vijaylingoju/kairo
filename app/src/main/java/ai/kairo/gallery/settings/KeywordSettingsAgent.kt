@@ -38,7 +38,28 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
     private val app = context.applicationContext
     private val settings = SystemSettingsController(app)
     private val device = DeviceController(app)
-    private val kb by lazy { SettingsKb.load(app) }
+    val kb: SettingsKb by lazy { SettingsKb.load(app) }
+
+    /** One-line snapshot for the LLM prompt, so suggestions fit the current situation. */
+    fun phoneState(): String {
+        fun pct(stream: Int) = device.volume(stream) * 100 / device.maxVolume(stream)
+        val ringer = when (device.ringerMode()) {
+            AudioManager.RINGER_MODE_SILENT -> "silent"
+            AudioManager.RINGER_MODE_VIBRATE -> "vibrate"
+            else -> "normal"
+        }
+        return listOf(
+            "time ${LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))}",
+            "brightness ${settings.brightnessPercent()?.let { "$it%" } ?: "unknown"}" +
+                if (settings.isAutoBrightnessOn()) " (auto)" else "",
+            "dark mode ${onOff(settings.isDarkModeOn())}",
+            "media volume ${pct(AudioManager.STREAM_MUSIC)}%",
+            "ringer $ringer",
+            "do not disturb ${onOff(device.isDndOn())}",
+            "flashlight ${onOff(device.isTorchOn)}",
+            "auto-rotate ${onOff(settings.isAutoRotateOn())}",
+        ).joinToString(", ")
+    }
 
     override suspend fun handle(query: String): SettingsResponse = withContext(Dispatchers.IO) {
         val setting = kb.match(query)

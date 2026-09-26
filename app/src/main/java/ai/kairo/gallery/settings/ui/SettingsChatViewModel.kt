@@ -3,11 +3,13 @@ package ai.kairo.gallery.settings.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import ai.kairo.gallery.llm.Llm
 import ai.kairo.gallery.settings.IntentSpec
-import ai.kairo.gallery.settings.KeywordSettingsAgent
+import ai.kairo.gallery.settings.LlmSettingsAgent
 import ai.kairo.gallery.settings.SettingsAgent
 import ai.kairo.gallery.settings.SettingsResponse
 import ai.kairo.gallery.settings.UndoToken
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -24,8 +26,13 @@ data class ChatMessage(
 
 class SettingsChatViewModel(app: Application) : AndroidViewModel(app) {
 
-    // Swap for the LLM-backed agent later; the UI doesn't change.
-    private val agent: SettingsAgent = KeywordSettingsAgent(app)
+    // Gemma when loaded, keyword rules otherwise.
+    private val agent: SettingsAgent = LlmSettingsAgent(app)
+
+    init {
+        // Usually already loaded by the gallery; this covers opening the settings screen first.
+        viewModelScope.launch(Dispatchers.IO) { runCatching { Llm.ensure(app) } }
+    }
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages = _messages.asStateFlow()
