@@ -10,6 +10,7 @@
                 <action android:name="ai.kairo.gallery.EVAL_SEARCH" />
                 <action android:name="ai.kairo.gallery.EVAL_STATUS" />
                 <action android:name="ai.kairo.gallery.EVAL_CLEAR" />
+                <action android:name="ai.kairo.gallery.EVAL_CONFIG" />
             </intent-filter>
         </receiver>
     </application>

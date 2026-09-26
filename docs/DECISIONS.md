@@ -74,6 +74,17 @@ Status: ✅ in place · 🔄 changed later · ⏳ in progress · 🅿️ parked
 | D38 | Field extraction: **IDs only on ID cards and only if regex-valid**; OCR-tolerant patterns (O→0, `0ct`, `B2I 34`); status bar excluded from OCR | Gemma copies misread or unrelated values | ✅ 10 unit tests from real OCR |
 | D39 | Eval results are **git-ignored** | They contain OCR of real personal documents (Aadhaar) | ✅ |
 
+## Phase 7: Faster Gemma indexing (2026-09-26 night, see [Report #3](reports/REPORT-03_2026-09-26_2355-IST_gemma-indexing-speed.md))
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| D40 | **Measure before optimising** with LiteRT-LM's benchmark (tokens read/written, speeds) | Writing the JSON turned out to be 62–78% of Gemma's time; conversation set-up was only 2–6 ms | ✅ |
+| D41 | **Every speed change must pass a quality gate** (categories, every field value, tags vs the base run) | Speed that loses PNRs, names or seats isn't worth it | ✅ `bench_index.ps1` + `compare_index.ps1` |
+| D42 | **Speculative decoding on by default** | Identical output in 2 runs; documents 9.7 → 5.7–6.7 s, gallery -24 to -36%, searches -17% | ✅ adopted |
+| D43 | **Rejected "write less" prompts** | -17% time but 7 fields lost and less specific tags | ❌ kept the original prompts |
+| D44 | **Rejected a lower image budget (140 tokens)** | 4 movie tickets lost their category and all fields | ❌ full image detail |
+| D45 | No forced greedy decoding | Default output is already deterministic (3 separate processes, identical) | – |
+
 ---
 
 ## Open decisions (to make next)
