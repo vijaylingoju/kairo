@@ -24,11 +24,7 @@ class LlmSettingsAgent(context: Context) : SettingsAgent {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override suspend fun handle(query: String): SettingsResponse {
-        // The checkup reads the real phone state; Gemma would answer with generic tips (seen on the iQOO, in ~6 s).
-        if (keywords.kb.match(query)?.id == SettingIds.PHONE_CHECKUP) return keywords.handle(query)
-        // Same for "my grandma can't read the screen": the keyword answer knows the current text size.
-        if (QueryParser.isLowVision(query)) return keywords.handle(query)
-        if (!Llm.isReady()) return keywords.handle(query)
+        if (!Llm.isReady() || skipGemma(query)) return keywords.handle(query)
         val decision = ask(query) ?: return keywords.handle(query)
         // Gemma sometimes lists the checkup as one tip among generic ones; the checkup itself is the grounded answer.
         if (decision is LlmDecision.Suggest && decision.items.any { it.settingId == SettingIds.PHONE_CHECKUP }) {
@@ -59,6 +55,25 @@ class LlmSettingsAgent(context: Context) : SettingsAgent {
     override fun close() {
         scope.cancel()
         keywords.close()
+    }
+
+    /**
+     * Gemma takes 2–5 s with the full settings list in its prompt. Skip it when the keyword answer is as good:
+     * - the problems the keyword agent checks against the real phone state (checkup, reading, eye strain), where
+     *   Gemma only gives generic tips;
+     * - requests the keywords fully understand ("turn off haptic feedback").
+     */
+    private fun skipGemma(query: String): Boolean {
+        val match = keywords.kb.match(query)
+        val reason = when {
+            match?.id == SettingIds.PHONE_CHECKUP -> "checkup"
+            QueryParser.isLowVision(query) -> "low vision"
+            QueryParser.isEyeStrain(query) -> "eye strain"
+            match != null && QueryParser.isSimpleRequest(query, match) -> "simple request for ${match.id}"
+            else -> return false
+        }
+        Log.i(TAG, "\"$query\" → keywords ($reason), no Gemma")
+        return true
     }
 
     private suspend fun ask(query: String): LlmDecision? {

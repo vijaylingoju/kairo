@@ -153,6 +153,31 @@ class SettingsKbRoutingTest {
     }
 
     @Test
+    fun onlyFullyUnderstoodRequestsSkipGemma() {
+        fun simple(query: String) = kb.match(query)?.let { QueryParser.isSimpleRequest(query, it) } ?: false
+        val simple = listOf(
+            "turn off haptic feedback", "reduce brightness", "make the text bigger", "is my phone up to date",
+            "how much storage is left", "put my phone on silent", "please turn on the flashlight",
+            "how do I turn on dark mode?", "volume up", "wifi", "connect bluetooth earbuds", "invert colors",
+            "turn animations back on", "what android version do I have", "make the screen brighter",
+            "it's really dark in here, make the screen brighter",
+            // The example chips
+            "Turn on Wi-Fi", "Do not disturb on", "Turn on the flashlight", "How much screen time today?",
+        )
+        val notSimple = listOf(
+            "don't turn off wifi",                               // negation
+            "make the screen brighter only in the evening",      // extra detail
+            "set my beach photo as wallpaper",                   // a photo to find
+            "turn on bluetooth and lower the brightness",        // two settings
+            "stop notifications from instagram",
+            "the volume buttons don't work",
+            "brightnes up",                                      // typo: no match at all
+        )
+        simple.forEach { assertTrue("should skip Gemma: $it", simple(it)) }
+        notSimple.forEach { assertFalse("should ask Gemma: $it", simple(it)) }
+    }
+
+    @Test
     fun lowVisionIsAboutReadingNotSunlight() {
         assertTrue(QueryParser.isLowVision("My grandma can't read the screen"))
         assertTrue(QueryParser.isLowVision("my eyesight is weak"))

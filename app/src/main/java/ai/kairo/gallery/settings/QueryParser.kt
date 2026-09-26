@@ -21,6 +21,18 @@ object QueryParser {
         return detected?.takeIf { it in setting.actions } ?: setting.actions.first()
     }
 
+    /**
+     * True when every word is one of [setting]'s synonyms, an action word or filler ("please turn off haptic
+     * feedback"). The keyword answer is then as good as Gemma's, and 2–5 s faster. Anything else (extra detail,
+     * another setting, "don't", typos, other languages) is left to Gemma.
+     */
+    fun isSimpleRequest(query: String, setting: KbSetting): Boolean {
+        var q = SettingsKb.normalize(query)
+        // Longest first, so "vibrate mode" is removed before "vibrate".
+        setting.synonyms.map(SettingsKb::normalize).sortedByDescending { it.length }.forEach { q = q.replace(it, " ") }
+        return q.split(' ').filter { it.isNotEmpty() }.all { it in FILLER || it in ACTION_TOKENS }
+    }
+
     fun isEyeStrain(query: String): Boolean {
         val q = SettingsKb.normalize(query)
         return EYE_STRAIN_WORDS.any { " $it " in q }
@@ -62,6 +74,25 @@ object QueryParser {
     private val OFF_WORDS = listOf("off", "disable", "deactivate", "unmute")
     private val ON_WORDS = listOf("on", "enable", "activate", "start", "use")
     private val EYE_STRAIN_WORDS = listOf("eye", "eyes", "burn", "burning", "strain", "headache", "squint", "sore")
+
+    private val ACTION_TOKENS: Set<String> =
+        (TOO_HIGH + TOO_LOW).flatMap { it.split(' ') }.toSet() +
+            DECREASE_WORDS + INCREASE_WORDS + OFF_WORDS + ON_WORDS + listOf("mute", "silence")
+
+    /**
+     * Words that don't change what a request means. Deliberately no negations ("don", "not", "never", "stop"):
+     * "don't turn off wifi" must go to Gemma. "t", "s"... are what's left of "can't", "it's" after normalizing.
+     */
+    private val FILLER = setOf(
+        "i", "me", "my", "mine", "the", "a", "an", "to", "of", "for", "in", "at", "by", "from", "with", "and",
+        "is", "are", "am", "be", "was", "it", "this", "that", "please", "pls", "plz", "can", "could", "would",
+        "will", "you", "u", "do", "does", "did", "have", "has", "got", "how", "what", "whats", "which", "when",
+        "where", "why", "want", "wanna", "need", "like", "just", "now", "right", "turn", "switch", "set", "make",
+        "put", "get", "show", "tell", "check", "see", "open", "go", "change", "phone", "mobile", "device", "screen",
+        "so", "very", "really", "bit", "little", "lot", "much", "many", "some", "any", "all", "again", "back",
+        "there", "here", "today", "left", "connect", "help", "let", "hey", "hi", "hello", "thanks", "thank",
+        "kairo", "t", "s", "m", "ll", "re", "ve", "d",
+    )
 
     /** Not "can't see": "I can't see the screen in the sun" is about brightness. */
     private val LOW_VISION_PHRASES = listOf(

@@ -20,6 +20,7 @@ The assistant then changes the setting, opens the right system panel, or shows s
 | Wellbeing: screen time, top apps, unlocks, late-night use → app timer / Bedtime / Focus mode; biggest app cache in the checkup | ✅ Built, unit-tested · ⚠️ on the iQOO, HackTracker blocks the Usage access page, so the screen-time card itself is untested |
 | Keyword agent | ✅ Done, tested on phone |
 | Gemma (LLM) agent: picks setting + action (+ photo), keyword agent as fallback | ✅ Done, tested on phone |
+| Speed: skip Gemma when the keywords fully understand the request, or for checkup / reading / eye-strain problems | ✅ Done, tested on phone (13 of 14 example chips answer instantly) |
 | Accessibility: touch vibration (direct), low-vision suggestions, guides for inversion, grayscale, color correction, contrast, bold text, Extra dim, animations, display size, magnification, TalkBack, captions, hearing aids | ✅ Done, partly tested on phone (see below) |
 | Undo for every direct change (except wallpaper: confirm first instead) | ✅ Done |
 | Problem → suggestions (eye strain) | ✅ Done |
@@ -138,6 +139,7 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 | "turn off haptic feedback" → `haptic_feedback_enabled` 1 → 0 → **Undo** → 1 (OriginOS keeps the write) | ✅ |
 | "invert colors" → Gemma: `color_inversion` / `on` → guide | ✅ routed (someone else was using the phone, so the card wasn't checked) |
 | Accessibility "Take me there" screens; direct switches with `WRITE_SECURE_SETTINGS` | ⬜ Not opened (HackTracker may guard Accessibility, like Usage access); permission not granted |
+| **Regression after the Gemma fast path (2026-09-27):** all 14 example chips + 13 typed requests (info cards, checkup, wallpaper, cleaner, Wi-Fi panel, Bedtime, touch vibration, guides, typo, off-topic) | ✅ All as expected; 40/40 unit tests pass |
 | Silent / DND actually switching | ⬜ Needs DND access granted first |
 | Ring volume; location / battery saver / hotspot deep links | ⬜ Not yet |
 
@@ -154,7 +156,7 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 - **Slow phone:** asked "my phone is slow", Gemma returned generic tips (clean up, close apps) in 5.9 s without looking at the phone. Now any query the keywords route to the checkup skips Gemma, and the prompt tells Gemma to pick `phone_checkup` for slow/hot phones. Gemma still sometimes answers `suggest` with the checkup as one item among generic tips, so any Gemma answer that mentions `phone_checkup` runs the checkup instead.
 - **HackTracker** (`com.reskill.hacktracker`, the organisers' app: device admin + accessibility service + its own Usage access) puts an "Enter organiser passcode" screen over the Usage access page. Participants can't grant Usage access on this phone without the organisers.
 - All the AOSP accessibility screens resolve on OriginOS 6: `COLOR_INVERSION_SETTINGS`, `ACCESSIBILITY_COLOR_SPACE_SETTINGS` (color correction), `ACCESSIBILITY_COLOR_MOTION_SETTINGS`, `TEXT_READING_SETTINGS` (display size and text), `MAGNIFICATION_SETTINGS`, `CAPTIONING_SETTINGS`, `HEARING_DEVICES_SETTINGS`, `REDUCE_BRIGHT_COLORS_SETTINGS`. TalkBack is installed.
-- **Gemma is getting slower as the list grows:** with 51 entries in the prompt, answers take 2–5 s (1.6 s with 24). Next step: skip Gemma when the keywords find an exact setting and action ("turn off haptic feedback").
+- **Gemma got slower as the list grew:** with 51 entries in the prompt, answers take 2–5 s (1.6 s with 24). Fixed by skipping Gemma when every word of the request is a synonym of the matched setting, an action word or filler (`QueryParser.isSimpleRequest`; negations like "don't" aren't filler). On the iQOO: "is my phone up to date", "how much storage is left", "invert colors", "my eyes hurt at night", "turn off haptic feedback" → no Gemma; "brightnes up" (typo) → Gemma, 4.8 s; "make the screen brighter only in the evening" → Gemma, 2.1 s. The log says which path each request took (`KairoSettingsLlm`).
 - The empty chat's example chips no longer fit on one screen (13 chips); the list now scrolls.
 - Digital Wellbeing (`com.google.android.apps.wellbeing`) is on the iQOO: `…action.APP_USAGE_DASHBOARD`, `…action.WIND_DOWN` (Bedtime mode), `…action.FOCUS_MODE`, and `android.settings.action.APP_USAGE_SETTINGS` + `EXTRA_PACKAGE_NAME` for one app's timer. The Usage access page accepts `package:ai.kairo.gallery` and opens on Kairo's own switch.
 - vivo's cleaner: `com.iqoo.secure.action.SPACE_MANAGER` → `com.vivo.imanager/…PhoneCleanActivity2`. It's also the first "Free up space" target of the storage card.
