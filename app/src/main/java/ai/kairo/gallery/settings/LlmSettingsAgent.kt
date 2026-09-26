@@ -20,6 +20,8 @@ class LlmSettingsAgent(context: Context) : SettingsAgent {
     private val app = context.applicationContext
     private val keywords = KeywordSettingsAgent(app)
 
+    val kb: SettingsKb get() = keywords.kb
+
     // Generation can't be interrupted, so it runs here and we stop *waiting* for it on timeout.
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 

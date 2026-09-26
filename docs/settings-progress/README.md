@@ -1,6 +1,6 @@
 # Settings Assistant — progress
 
-_Last updated: 2026-09-26 · branch `feat/settings-handle` · owner: Swaroop_
+_Last updated: 2026-09-27 · branch `feat/settings-handle` · owner: Swaroop_
 
 ## What it is
 
@@ -24,8 +24,11 @@ The assistant then changes the setting, opens the right system panel, or shows s
 | Accessibility: touch vibration (direct), low-vision suggestions, guides for inversion, grayscale, color correction, contrast, bold text, Extra dim, animations, display size, magnification, TalkBack, captions, hearing aids | ✅ Done, partly tested on phone (see below) |
 | Undo for every direct change (except wallpaper: confirm first instead) | ✅ Done |
 | Problem → suggestions (eye strain) | ✅ Done |
-| Single app: gallery home → Settings screen | ✅ Done |
+| Single app: the chat is the gallery's third tab, **Kairo**, and answers photo questions too | ✅ Done, tested on phone |
+| Photos or settings? Router: rules first, then a one-word Gemma answer (~0.7 s), then the user picks | ✅ Done, tested on phone |
+| One shared conversation (`AssistantSession`) for the Kairo tab and, later, the floating ball | ✅ Done |
 | Routing unit test | ✅ Passing (94 phrases) |
+| Photos-or-settings routing test (`IntentRouterTest`) | ✅ Passing (47 phrases) |
 | Screen-time maths unit test (`UsageMathTest`) | ✅ Passing |
 | Accessibility switch on/off logic (`SecureSwitchesTest`) | ✅ Passing |
 | Commit to `feat/settings-handle` | ✅ Committed |
@@ -33,7 +36,7 @@ The assistant then changes the setting, opens the right system panel, or shows s
 
 ## How to open it
 
-Launch **Kairo Gallery**, tap the wrench (**Developer view**, top-right of the gallery), then the gear (**Settings Assistant**). The ← arrow goes back.
+Launch **Kairo Gallery** and tap the **Kairo** tab (bottom right, next to Photos and Albums).
 
 ```bash
 adb shell am start -n ai.kairo.gallery/.ui.MainActivity
@@ -42,10 +45,15 @@ adb shell am start -n ai.kairo.gallery/.ui.MainActivity
 ## Architecture
 
 ```
-SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (interface)
-                                                    │  handle(query) / apply(id, action, value) / setWallpaper(uri, screen) / undo(token)
-                                                    ▼
-                                            LlmSettingsAgent  (Gemma decides; falls back to keywords)
+Kairo tab (AssistantChat) ──► AssistantSession (the one conversation) ──► KairoAssistant
+                                                                            │  IntentRouter: rules → Gemma (one word) → user picks
+                                                     ┌──────────────────────┴───────────────────────┐
+                                                  photos                                        settings
+                                                     ▼                                              ▼
+                                        SearchEngine.search()                          SettingsAgent (interface)
+                                  (thumbnails + answer card in the chat;                 │  handle(query) / apply(id, action, value) / setWallpaper(uri, screen) / undo(token)
+                                   "See all" opens the gallery search)                   ▼
+                                                                            LlmSettingsAgent  (Gemma decides; falls back to keywords)
                                                     ▼
                                             KeywordSettingsAgent   (routing + executors)
                                              ├─ SettingsKb      ← assets/settings_kb.json
@@ -59,7 +67,9 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 - The agent only picks a `setting_id` + `action` from the knowledge base. Kotlin code does the actual change. The model never invents settings paths.
 - Responses are typed: `Info`, `Done` (with undo), `Suggestions`, `Guide`, `Facts` (read-only rows + a button), `ChoosePhoto` (wallpaper thumbnails), `OpenPanel`, `NeedsPermission`.
 - Some settings need a detail besides the action: for the wallpaper, Gemma returns `"photo":"beach sunset"` (the keyword agent strips the filler words instead), and the action is the screen (`both` / `home` / `lock`).
-- The same `SettingsAgent` interface is meant for the floating bubble and a Quick Settings tile later.
+- **Photos or settings?** `IntentRouter` looks for photo words and gallery categories (photo, screenshot, PAN, ticket, PNR…) and for settings signals (a knowledge-base synonym, a phone word like "battery" or "screen", eye strain). Many settings synonyms also appear in photo requests ("bright sunset photos", "screenshot of the wifi password", "black and white photos"), so when both sides match, a word that changes something ("set", "turn") means settings and anything else means photos. The wallpaper is the exception: it's a setting that uses the gallery. Gallery words are only looked for in the words the setting didn't explain, so "flight mode" isn't a flight ticket.
+- Only unclear requests ("golden retriever", "hot dog", Telugu, "I'm going into a meeting") ask Gemma, with a short prompt that answers `{"route":"gallery|settings|none"}` in ~0.7 s. `none`, a timeout or a missing model → "Search photos / Phone settings" buttons.
+- The conversation lives in `AssistantSession` (process-wide, not a ViewModel), so the floating ball can hand a conversation to the Kairo tab without asking Gemma again. The same `ReplyCard`s show every reply in both places.
 
 ### Files
 
@@ -76,8 +86,13 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 | `settings/AccessibilityController.kt` | Accessibility switches in Settings.Secure/Global (`SecureSwitches` table); direct only with WRITE_SECURE_SETTINGS |
 | `settings/Wellbeing.kt` | Screen time from Android's usage events (`UsageMath`: one app in front at a time, home screen not counted), `hasUsageAccess()`, `appLabel()` |
 | `settings/Wallpapers.kt` | Finds photos with the gallery search, then decodes (EXIF-rotated), center-crops to the screen and sets the tapped one |
-| `settings/ui/*` | Chat screen, ViewModel, `SettingsActivity` |
+| `assistant/IntentRouter.kt` | Photos or settings: rules, plus the one-word Gemma prompt for unclear requests |
+| `assistant/KairoAssistant.kt` | Routes a request, then calls the gallery search or the settings agent; `AssistantReply` (Photos, Settings, AskWhich) |
+| `assistant/AssistantSession.kt` | The one shared conversation: messages, busy, send / choose / apply / undo / wallpaper |
+| `assistant/ui/AssistantChat.kt` | The Kairo tab: chat list (anchored to the newest message), example chips, input pill with mic |
+| `assistant/ui/ReplyCards.kt` | One card per reply type, shared by the tab and (later) the ball |
 | `app/src/test/.../SettingsKbRoutingTest.kt` | Runs real phrases through the real JSON |
+| `app/src/test/.../IntentRouterTest.kt` | Photos-or-settings routing on real phrases, including the ones where settings synonyms appear in photo requests |
 
 ## Supported settings (45) + phone info (6)
 
@@ -140,6 +155,10 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 | "invert colors" → Gemma: `color_inversion` / `on` → guide | ✅ routed (someone else was using the phone, so the card wasn't checked) |
 | Accessibility "Take me there" screens; direct switches with `WRITE_SECURE_SETTINGS` | ⬜ Not opened (HackTracker may guard Accessibility, like Usage access); permission not granted |
 | **Regression after the Gemma fast path (2026-09-27):** all 14 example chips + 13 typed requests (info cards, checkup, wallpaper, cleaner, Wi-Fi panel, Bedtime, touch vibration, guides, typo, off-topic) | ✅ All as expected; 40/40 unit tests pass |
+| **Kairo tab (2026-09-27):** "Movie tickets", "cricket photos", "photos from yesterday" → photos by rules; "How much storage is left" → settings by rules, no Gemma | ✅ |
+| "mountains", "golden retriever", "hot dog" → Gemma: gallery; "I am going into a meeting" → Gemma: settings (DND + vibrate suggestions); "order me a pizza" → Gemma: none → **Search photos** / **Phone settings** buttons | ✅ ~0.7 s per Gemma answer (2.2 s for the first one after loading). Before a prompt fix, "mountains" came back as `none` |
+| Photo reply: tap a thumbnail → viewer → Back → still on the Kairo tab; **See all 6 photos** → gallery search shows the same result without searching again | ✅ |
+| Keyboard open → bottom tabs hide; keyboard closed → newest reply still fully visible | ✅ after anchoring the list to the bottom |
 | Silent / DND actually switching | ⬜ Needs DND access granted first |
 | Ring volume; location / battery saver / hotspot deep links | ⬜ Not yet |
 
@@ -181,7 +200,7 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 ## Running the tests
 
 ```bash
-./gradlew :app:testDebugUnitTest --tests "ai.kairo.gallery.settings.*"
+./gradlew :app:testDebugUnitTest --tests "ai.kairo.gallery.settings.*" --tests "ai.kairo.gallery.assistant.*"
 ```
 
 On Windows, set `JAVA_HOME` to Android Studio's `jbr` first and use `gradlew.bat`.

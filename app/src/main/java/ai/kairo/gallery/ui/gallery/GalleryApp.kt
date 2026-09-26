@@ -1,7 +1,10 @@
 package ai.kairo.gallery.ui.gallery
 
+import ai.kairo.gallery.assistant.ui.AssistantChat
+import ai.kairo.gallery.assistant.ui.ClearChatButton
 import ai.kairo.gallery.data.IndexedImage
 import ai.kairo.gallery.index.Indexer
+import ai.kairo.gallery.search.SearchResult
 import ai.kairo.gallery.ui.MainViewModel
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -21,13 +24,16 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -55,7 +61,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -83,7 +89,7 @@ sealed interface GalleryRoute {
 }
 
 /**
- * The demo / user UI: an OriginOS-style gallery with smart search on top.
+ * The demo / user UI: an OriginOS-style gallery with smart search on top, and the Kairo chat as a third tab.
  * Indexing keeps running in the background (WorkManager); this screen only observes it.
  */
 @Composable
@@ -93,6 +99,8 @@ fun GalleryApp(vm: MainViewModel, hasPerm: Boolean, onGrant: () -> Unit, onOpenD
     fun pop() { if (stack.size > 1) stack.removeAt(stack.lastIndex) }
     BackHandler(enabled = stack.size > 1) { pop() }
 
+    // Out here, not in HomeScreen: coming back from a photo, album or search keeps the tab the user was on.
+    var tab by rememberSaveable { mutableIntStateOf(TAB_PHOTOS) }
     val photos by vm.allImages.collectAsState()
     val c = Kairo.colors
 
@@ -105,10 +113,15 @@ fun GalleryApp(vm: MainViewModel, hasPerm: Boolean, onGrant: () -> Unit, onOpenD
             when (route) {
                 GalleryRoute.Home -> HomeScreen(
                     vm = vm, photos = photos, hasPerm = hasPerm, onGrant = onGrant, onOpenDev = onOpenDev,
+                    tab = tab, onTab = { tab = it },
                     onSearch = { push(GalleryRoute.Search()) },
                     onVoice = { push(GalleryRoute.Search(voice = true)) },
                     onOpenAlbum = { push(GalleryRoute.Album(it)) },
                     onOpenPhoto = { list, i -> push(GalleryRoute.Viewer(list, i)) },
+                    onOpenPhotos = { result ->
+                        vm.showResult(result)
+                        push(GalleryRoute.Search())
+                    },
                 )
                 is GalleryRoute.Search -> SmartSearchScreen(
                     vm = vm, startWithVoice = route.voice, onBack = { pop() },
@@ -125,9 +138,14 @@ fun GalleryApp(vm: MainViewModel, hasPerm: Boolean, onGrant: () -> Unit, onOpenD
 }
 
 // ---------------------------------------------------------------------------------------------------
-// Home: header + search pill + (Photos | Albums) + bottom tabs
+// Home: header + (Photos | Albums: search pill + grid) or (Kairo: chat) + bottom tabs
 // ---------------------------------------------------------------------------------------------------
 
+private const val TAB_PHOTOS = 0
+private const val TAB_ALBUMS = 1
+private const val TAB_KAIRO = 2
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun HomeScreen(
     vm: MainViewModel,
@@ -135,12 +153,14 @@ private fun HomeScreen(
     hasPerm: Boolean,
     onGrant: () -> Unit,
     onOpenDev: () -> Unit,
+    tab: Int,
+    onTab: (Int) -> Unit,
     onSearch: () -> Unit,
     onVoice: () -> Unit,
     onOpenAlbum: (String) -> Unit,
     onOpenPhoto: (List<IndexedImage>, Int) -> Unit,
+    onOpenPhotos: (SearchResult) -> Unit,
 ) {
-    var tab by rememberSaveable { mutableStateOf(0) }  // 0 = Photos, 1 = Albums
     val status by vm.indexStatus.collectAsState()
     val c = Kairo.colors
 
@@ -148,25 +168,36 @@ private fun HomeScreen(
         // Title row with the small developer-mode icon.
         Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                if (tab == 0) "Photos" else "Albums",
+                when (tab) {
+                    TAB_PHOTOS -> "Photos"
+                    TAB_ALBUMS -> "Albums"
+                    else -> "Kairo"
+                },
                 style = MaterialTheme.typography.headlineLarge, color = c.text, modifier = Modifier.weight(1f),
             )
+            if (tab == TAB_KAIRO) ClearChatButton()
             IconButton(onClick = onOpenDev) {
                 Icon(Icons.Filled.Build, contentDescription = "Developer view", tint = c.textSecondary, modifier = Modifier.size(18.dp).alpha(0.6f))
             }
         }
-        SearchPill(onClick = onSearch, onVoice = onVoice, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
-        IndexingPill(status)
+        if (tab == TAB_KAIRO) {
+            // Works without photo access: settings don't need it.
+            AssistantChat(onOpenPhotos = onOpenPhotos, onOpenPhoto = onOpenPhoto, modifier = Modifier.weight(1f))
+        } else {
+            SearchPill(onClick = onSearch, onVoice = onVoice, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
+            IndexingPill(status)
 
-        Box(Modifier.weight(1f)) {
-            when {
-                !hasPerm -> PermissionCard(onGrant)
-                photos.isEmpty() -> EmptyGallery()
-                tab == 0 -> PhotosGrid(photos, onOpenPhoto)
-                else -> AlbumsGrid(photos, onOpenAlbum)
+            Box(Modifier.weight(1f)) {
+                when {
+                    !hasPerm -> PermissionCard(onGrant)
+                    photos.isEmpty() -> EmptyGallery()
+                    tab == TAB_PHOTOS -> PhotosGrid(photos, onOpenPhoto)
+                    else -> AlbumsGrid(photos, onOpenAlbum)
+                }
             }
         }
-        BottomTabs(tab) { tab = it }
+        // While typing to Kairo the keyboard takes the tabs' place.
+        if (!(tab == TAB_KAIRO && WindowInsets.isImeVisible)) BottomTabs(tab, onTab)
     }
 }
 
@@ -373,7 +404,7 @@ private fun EmptyGallery() {
 }
 
 // ---------------------------------------------------------------------------------------------------
-// Bottom tabs (hand-drawn icons: Photos = picture frame, Albums = 2x2 tiles)
+// Bottom tabs (hand-drawn icons: Photos = picture frame, Albums = 2x2 tiles, Kairo = sparkle)
 // ---------------------------------------------------------------------------------------------------
 
 @Composable
@@ -383,8 +414,9 @@ private fun BottomTabs(selected: Int, onSelect: (Int) -> Unit) {
         Modifier.fillMaxWidth().background(c.background).navigationBarsPadding().padding(top = 6.dp, bottom = 4.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
-        TabItem("Photos", selected == 0, { tint -> PhotosIcon(tint) }) { onSelect(0) }
-        TabItem("Albums", selected == 1, { tint -> AlbumsIcon(tint) }) { onSelect(1) }
+        TabItem("Photos", selected == TAB_PHOTOS, { tint -> PhotosIcon(tint) }) { onSelect(TAB_PHOTOS) }
+        TabItem("Albums", selected == TAB_ALBUMS, { tint -> AlbumsIcon(tint) }) { onSelect(TAB_ALBUMS) }
+        TabItem("Kairo", selected == TAB_KAIRO, { tint -> KairoIcon(tint) }) { onSelect(TAB_KAIRO) }
     }
 }
 
@@ -428,5 +460,24 @@ private fun AlbumsIcon(tint: Color) {
         for ((x, y) in listOf(0.14f to 0.14f, 0.54f to 0.14f, 0.14f to 0.54f, 0.54f to 0.54f)) {
             drawRoundRect(tint, topLeft = Offset(s * x, s * y), size = Size(box, box), cornerRadius = CornerRadius(s * 0.08f), style = stroke)
         }
+    }
+}
+
+/** The AI sparkle's shape in the tab colour: a big four-point star and a small one. */
+@Composable
+private fun KairoIcon(tint: Color) {
+    Canvas(Modifier.size(24.dp)) {
+        val s = size.width
+        fun star(cx: Float, cy: Float, r: Float) = androidx.compose.ui.graphics.Path().apply {
+            val k = r * 0.18f  // how far the sides curve in towards the centre
+            moveTo(cx, cy - r)
+            quadraticTo(cx + k, cy - k, cx + r, cy)
+            quadraticTo(cx + k, cy + k, cx, cy + r)
+            quadraticTo(cx - k, cy + k, cx - r, cy)
+            quadraticTo(cx - k, cy - k, cx, cy - r)
+            close()
+        }
+        drawPath(star(s * 0.42f, s * 0.56f, s * 0.36f), tint, style = Stroke(width = s * 0.08f))
+        drawPath(star(s * 0.80f, s * 0.20f, s * 0.14f), tint)
     }
 }

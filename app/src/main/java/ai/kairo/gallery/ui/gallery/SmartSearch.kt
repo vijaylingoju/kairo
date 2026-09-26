@@ -309,9 +309,9 @@ private fun Results(r: SearchResult, onOpenPhoto: (List<IndexedImage>, Int) -> U
     }
 }
 
-/** Big answer with Copy. ID numbers stay masked until tapped. */
+/** Big answer with Copy. ID numbers stay masked until tapped. Also shown in the Kairo chat. */
 @Composable
-private fun AnswerCard(r: SearchResult, answer: String, onOpenSource: (IndexedImage) -> Unit) {
+internal fun AnswerCard(r: SearchResult, answer: String, onOpenSource: (IndexedImage) -> Unit) {
     val c = Kairo.colors
     val ctx = LocalContext.current
     val label = answer.substringBefore(": ")

@@ -3,7 +3,6 @@ package ai.kairo.gallery.ui
 import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
@@ -37,7 +36,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -73,7 +71,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ai.kairo.gallery.data.IndexedImage
 import ai.kairo.gallery.index.Indexer
-import ai.kairo.gallery.settings.ui.SettingsActivity
 import ai.kairo.gallery.ui.gallery.GalleryApp
 import ai.kairo.gallery.ui.gallery.KairoTheme
 import coil.compose.AsyncImage
@@ -139,7 +136,6 @@ fun KairoScreen(vm: MainViewModel, hasPerm: Boolean, onGrant: () -> Unit, onClos
     var selected by remember { mutableStateOf<IndexedImage?>(null) }
     var confirmClear by remember { mutableStateOf(false) }
 
-    val context = LocalContext.current
     Scaffold(
         topBar = {
             TopAppBar(
@@ -147,11 +143,6 @@ fun KairoScreen(vm: MainViewModel, hasPerm: Boolean, onGrant: () -> Unit, onClos
                 navigationIcon = {
                     IconButton(onClick = onClose) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to gallery")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { context.startActivity(Intent(context, SettingsActivity::class.java)) }) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Settings Assistant")
                     }
                 },
             )
