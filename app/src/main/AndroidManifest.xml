@@ -23,6 +23,8 @@
     <application
         android:name=".KairoApp"
         android:label="Kairo Gallery"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:largeHeap="true"
         android:theme="@style/Theme.Kairo">
 
