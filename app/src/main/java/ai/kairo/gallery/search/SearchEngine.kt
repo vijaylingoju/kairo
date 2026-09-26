@@ -37,6 +37,7 @@ data class SearchResult(
     val scores: Map<Long, Float> = emptyMap(),  // final score per returned photo
     val sims: Map<Long, Float> = emptyMap(),    // raw CLIP similarity per photo (all photos)
     val adjusted: Map<Long, Float> = emptyMap(), // CLIP similarity minus the photo's own baseline
+    val answerImage: IndexedImage? = null,     // the photo the answer was read from
 )
 
 /**
@@ -167,19 +168,21 @@ object SearchEngine {
         )
 
         // Answer only from the best match: never read "seats" off a train ticket when asked about a flight.
-        val answer = filter.wantedField?.let { field ->
+        val answerImage = filter.wantedField?.let { field ->
             val top = scored.maxOfOrNull { it.second } ?: return@let null
             scored.filter { it.second >= top - 1f }
                 .sortedByDescending { it.second }
                 .firstOrNull { it.first.fields[field] != null }
-                ?.let { formatAnswer(field, it.first) }
+                ?.first
         }
+        val answer = answerImage?.let { formatAnswer(filter.wantedField!!, it) }
 
         SearchResult(
             query, filter, ranked, answer, SystemClock.elapsedRealtime() - t0, sims?.values?.maxOrNull(),
             scores = scored.associate { it.first.mediaId to it.second },
             sims = sims.orEmpty(),
             adjusted = adj.orEmpty(),
+            answerImage = answerImage,
         )
     }
 

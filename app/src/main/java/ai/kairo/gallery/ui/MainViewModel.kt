@@ -79,14 +79,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _result.value = null
             return
         }
+        val q = query.trim()
+        _recent.value = (listOf(q) + _recent.value.filter { !it.equals(q, ignoreCase = true) }).take(6)
+        _result.value = null
         viewModelScope.launch {
             _searching.value = true
             try {
-                _result.value = SearchEngine.search(ctx, query.trim())
+                _result.value = SearchEngine.search(ctx, q)
             } finally {
                 _searching.value = false
             }
         }
+    }
+
+    private val _recent = MutableStateFlow<List<String>>(emptyList())
+    /** Recent searches for the smart-search screen (this session only, never stored). */
+    val recent: StateFlow<List<String>> = _recent
+
+    fun clearRecent() {
+        _recent.value = emptyList()
     }
 
     fun clearSearch() {
