@@ -3,9 +3,19 @@ package ai.kairo.gallery.ui.gallery
 import ai.kairo.gallery.data.IndexedImage
 import ai.kairo.gallery.search.SearchResult
 import ai.kairo.gallery.ui.MainViewModel
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.pm.PackageManager
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import ai.kairo.gallery.voice.VoiceState
+import ai.kairo.gallery.voice.VoiceVocabulary
+import android.util.Log
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.delay
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -73,11 +83,19 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Composable
-fun SmartSearchScreen(vm: MainViewModel, onBack: () -> Unit, onOpenPhoto: (List<IndexedImage>, Int) -> Unit) {
+fun SmartSearchScreen(
+    vm: MainViewModel,
+    startWithVoice: Boolean,
+    onBack: () -> Unit,
+    onOpenPhoto: (List<IndexedImage>, Int) -> Unit,
+) {
     val c = Kairo.colors
+    val ctx = LocalContext.current
     val result by vm.result.collectAsState()
     val searching by vm.searching.collectAsState()
     val recent by vm.recent.collectAsState()
+    val photos by vm.allImages.collectAsState()
+    val vocab = remember(photos) { VoiceVocabulary.fromGallery(photos) }
     val model by vm.modelState.collectAsState()
     var query by rememberSaveable { mutableStateOf(result?.query ?: "") }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -89,8 +107,46 @@ fun SmartSearchScreen(vm: MainViewModel, onBack: () -> Unit, onOpenPhoto: (List<
         keyboard?.hide()
         vm.search(q)
     }
-    LaunchedEffect(Unit) { if (result == null) focus.requestFocus() }
 
+    // --- Voice search: speech -> text -> search ---
+    val voice = rememberVoiceRecognizer()
+    val voiceState by voice.state.collectAsState()
+    val voiceOnDevice = voice.onDevice
+    var voiceOpen by rememberSaveable { mutableStateOf(false) }
+    fun listen() {
+        keyboard?.hide()
+        voiceOpen = true
+        voice.start(vocab.phrases)
+    }
+    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) listen() else Toast.makeText(ctx, "Allow the microphone to search by voice", Toast.LENGTH_SHORT).show()
+    }
+    fun startVoice() {
+        if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) listen()
+        else micPermission.launch(Manifest.permission.RECORD_AUDIO)
+    }
+    fun closeVoice() {
+        voice.cancel()
+        voiceOpen = false
+    }
+    // Final words -> fill the box and search, then close the sheet.
+    LaunchedEffect(voiceState) {
+        val done = voiceState as? VoiceState.Done ?: return@LaunchedEffect
+        delay(350)  // let the user see what was heard
+        voiceOpen = false
+        voice.reset()
+        // Fix sound-alike mistakes with the gallery's own words ("hero modi" -> "irumudi").
+        val fixed = vocab.correct(done.text)
+        if (fixed != done.text) Log.i("KairoVoice", "Corrected: \"${done.text}\" -> \"$fixed\"")
+        run(fixed)
+    }
+    LaunchedEffect(Unit) {
+        // Opened from the home mic: start listening straight away.
+        if (startWithVoice && result == null) startVoice()
+        if (!startWithVoice && result == null) focus.requestFocus()
+    }
+
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().background(c.background).statusBarsPadding().imePadding()) {
         // Search field with the AI glow (brighter while Kairo is thinking).
         Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -124,6 +180,9 @@ fun SmartSearchScreen(vm: MainViewModel, onBack: () -> Unit, onOpenPhoto: (List<
                         Icon(Icons.Filled.Close, contentDescription = "Clear", tint = c.textSecondary, modifier = Modifier.size(18.dp))
                     }
                 }
+                IconButton(onClick = ::startVoice, modifier = Modifier.size(36.dp)) {
+                    MicIcon(c.accent, size = 22.dp)
+                }
             }
         }
 
@@ -139,6 +198,18 @@ fun SmartSearchScreen(vm: MainViewModel, onBack: () -> Unit, onOpenPhoto: (List<
                 else -> Suggestions(recent, modelReady = "ready" in model, onPick = ::run, onClearRecent = vm::clearRecent)
             }
         }
+    }
+
+    if (voiceOpen) {
+        BackHandler { closeVoice() }
+        VoiceSheet(
+            state = voiceState,
+            onDevice = voiceOnDevice,
+            onOrbTap = voice::stop,
+            onRetry = { voice.start(vocab.phrases) },
+            onClose = ::closeVoice,
+        )
+    }
     }
 }
 

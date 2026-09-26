@@ -77,7 +77,7 @@ import coil.compose.AsyncImage
 /** Screens inside the user-facing gallery. */
 sealed interface GalleryRoute {
     data object Home : GalleryRoute
-    data object Search : GalleryRoute
+    data class Search(val voice: Boolean = false) : GalleryRoute
     data class Album(val key: String) : GalleryRoute
     data class Viewer(val photos: List<IndexedImage>, val start: Int) : GalleryRoute
 }
@@ -105,12 +105,13 @@ fun GalleryApp(vm: MainViewModel, hasPerm: Boolean, onGrant: () -> Unit, onOpenD
             when (route) {
                 GalleryRoute.Home -> HomeScreen(
                     vm = vm, photos = photos, hasPerm = hasPerm, onGrant = onGrant, onOpenDev = onOpenDev,
-                    onSearch = { push(GalleryRoute.Search) },
+                    onSearch = { push(GalleryRoute.Search()) },
+                    onVoice = { push(GalleryRoute.Search(voice = true)) },
                     onOpenAlbum = { push(GalleryRoute.Album(it)) },
                     onOpenPhoto = { list, i -> push(GalleryRoute.Viewer(list, i)) },
                 )
-                GalleryRoute.Search -> SmartSearchScreen(
-                    vm = vm, onBack = { pop() },
+                is GalleryRoute.Search -> SmartSearchScreen(
+                    vm = vm, startWithVoice = route.voice, onBack = { pop() },
                     onOpenPhoto = { list, i -> push(GalleryRoute.Viewer(list, i)) },
                 )
                 is GalleryRoute.Album -> AlbumScreen(
@@ -135,6 +136,7 @@ private fun HomeScreen(
     onGrant: () -> Unit,
     onOpenDev: () -> Unit,
     onSearch: () -> Unit,
+    onVoice: () -> Unit,
     onOpenAlbum: (String) -> Unit,
     onOpenPhoto: (List<IndexedImage>, Int) -> Unit,
 ) {
@@ -153,7 +155,7 @@ private fun HomeScreen(
                 Icon(Icons.Filled.Build, contentDescription = "Developer view", tint = c.textSecondary, modifier = Modifier.size(18.dp).alpha(0.6f))
             }
         }
-        SearchPill(onClick = onSearch, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
+        SearchPill(onClick = onSearch, onVoice = onVoice, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
         IndexingPill(status)
 
         Box(Modifier.weight(1f)) {
@@ -169,7 +171,7 @@ private fun HomeScreen(
 }
 
 @Composable
-private fun SearchPill(onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun SearchPill(onClick: () -> Unit, onVoice: () -> Unit, modifier: Modifier = Modifier) {
     val c = Kairo.colors
     val shape = RoundedCornerShape(26.dp)
     Row(
@@ -185,7 +187,8 @@ private fun SearchPill(onClick: () -> Unit, modifier: Modifier = Modifier) {
     ) {
         AiSparkle(size = 20.dp)
         Spacer(Modifier.width(10.dp))
-        Text("Search photos, tickets, IDs…", color = c.textSecondary, style = MaterialTheme.typography.bodyLarge)
+        Text("Search photos, tickets, IDs…", color = c.textSecondary, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        IconButton(onClick = onVoice) { MicIcon(c.accent, size = 22.dp) }
     }
 }
 
