@@ -9,7 +9,7 @@ Everything runs **on the phone**: Gemma 4 (LiteRT-LM) + CLIP (LiteRT) + ML Kit O
 
 ```
 New photo in Pictures/Kairo  ──(WorkManager wakes on gallery change)──▶
-  Pass 1 (fast, ~0.1-0.3 s)  CLIP image embedding              → searchable by what it looks like
+  Pass 1 (fast, ~0.04 s)     CLIP image embedding on the NPU   → searchable by what it looks like
   Pass 2 (deep, ~5-12 s)     ML Kit OCR (exact text)
                              Gemma 4 E4B (image + OCR)         → category, description, tags, fields (JSON)
                              Checks: regex + grounding          → PAN/Aadhaar/PNR/booking ID/seats/amount; drop anything not in OCR
@@ -25,7 +25,7 @@ Question ─▶ rules (instant) ─┬─ confident? → skip Gemma (~0.1 s)
 Evaluation on an iQOO 15 (41 scenarios): **39/41 pass, 98% precision**. See [Report #2](docs/reports/REPORT-02_2026-09-26_1600-IST_gemma4-e4b-iqoo15-evaluation.md).
 
 ## Using it
-- The top lines show model status (`gemma-4-E4B-it ready on GPU`, `CLIP ready on GPU+CPU`) and indexing progress.
+- The top lines show model status (`gemma-4-E4B-it ready on GPU`, `CLIP ready: images on NPU, text on GPU+CPU`) and indexing progress.
 - **Index now** indexes new or changed photos. **Re-index all** reruns everything. **Clear all data & start fresh** wipes the index (not photos or models).
 - **Also index new screenshots**: screenshots taken after you switch it on are indexed too.
 - Tap a thumbnail to see its category, description, tags, fields, OCR text and indexing time.
@@ -40,7 +40,7 @@ Evaluation on an iQOO 15 (41 scenarios): **39/41 pass, 98% precision**. See [Rep
 | `index/Ocr.kt` | ML Kit OCR (skips the status bar on screenshots) |
 | `index/FieldExtractor.kt` | Regex + grounding checks, OCR-error repair, rule-based categories |
 | `index/IndexWorker.kt` | WorkManager worker + gallery-change trigger |
-| `embed/Clip.kt`, `embed/ClipTokenizer.kt` | CLIP runtime (LiteRT, GPU+CPU) and Kotlin BPE tokenizer |
+| `embed/Clip.kt`, `embed/ClipTokenizer.kt` | CLIP runtime (LiteRT: photos on the NPU, search text on GPU+CPU) and Kotlin BPE tokenizer |
 | `llm/Llm.kt`, `llm/Prompts.kt` | Gemma loader (auto-picks E4B > E2B), bounded generation, prompts |
 | `data/IndexDb.kt` | SQLite + FTS4 + CLIP embeddings |
 | `search/SearchEngine.kt` | Question → filter → evidence → ranked results + answer |

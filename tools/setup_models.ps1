@@ -121,8 +121,13 @@ if ($Clip) {
     }
     if ($c.Extension -ne ".tflite") { Fail "CLIP must be openai_clip.tflite or its zip. Got: $($c.Name)" }
     if (-not (Check-Local $c.FullName "openai_clip.tflite")) { Fail "Fix the CLIP file first." }
-    Ok "$($c.Name) ($([Math]::Round($c.Length / 1e6)) MB) -> will be pushed as clip.tflite"
-    $toPush += @{ Local = $c.FullName; Remote = "$remoteDir/clip.tflite" }  # the app looks for exactly this name
+    # Snapdragon NPU fix: expose the export's unused tensors as outputs (see tools/patch_clip_npu.ps1).
+    $patched = Join-Path $env:TEMP "kairo_clip_npu.tflite"
+    Write-Host "    Preparing CLIP for the NPU..."
+    & (Join-Path $PSScriptRoot "patch_clip_npu.ps1") -In $c.FullName -Out $patched
+    if (-not (Test-Path $patched)) { Fail "Could not prepare CLIP for the NPU." }
+    Ok "$($c.Name) ($([Math]::Round($c.Length / 1e6)) MB), NPU-ready -> will be pushed as clip.tflite"
+    $toPush += @{ Local = $patched; Remote = "$remoteDir/clip.tflite" }  # the app looks for exactly this name
 }
 
 # --- 5. push --------------------------------------------------------------------------------------

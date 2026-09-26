@@ -16,6 +16,8 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1"
+        // Snapdragon phones are 64-bit ARM; the NPU runtime ships only for arm64.
+        ndk { abiFilters += "arm64-v8a" }
     }
 
     buildTypes {
@@ -32,6 +34,24 @@ android {
     buildFeatures {
         compose = true
     }
+
+    packaging {
+        jniLibs {
+            // NPU: the Hexagon DSP loads libQnnHtpV81Skel.so from the extracted native lib dir, so keep libs on disk.
+            useLegacyPackaging = true
+            // Hexagon (DSP) binaries can't be stripped by the Android NDK tools.
+            keepDebugSymbols += "**/libQnnHtpV*Skel.so"
+            // Kairo targets the Snapdragon 8 Elite Gen 5 (Hexagon V81): drop the other NPU generations (~40 MB).
+            listOf("68", "69", "73", "75", "79").forEach { v ->
+                excludes += "**/libQnnHtpV${v}Skel.so"
+                excludes += "**/libQnnHtpV${v}Stub.so"
+                excludes += "**/libQnnHtpV${v}CalculatorStub.so"
+            }
+            // Only the HTP (NPU) backend is used; the legacy DSP and QNN-GPU backends are not.
+            excludes += "**/libQnnDsp*.so"
+            excludes += "**/libQnnGpu*.so"
+        }
+    }
 }
 
 kotlin {
@@ -46,6 +66,9 @@ dependencies {
 
     // On-device CLIP for semantic image search (.tflite, GPU with CPU fallback)
     implementation("com.google.ai.edge.litert:litert:2.2.0")
+    // Qualcomm NPU (Hexagon HTP) runtime for CLIP; same QAIRT version (2.47) that LiteRT 2.2.0 is built against.
+    // LiteRT's Qualcomm dispatch/compiler plugin (V81) lives in src/main/jniLibs/arm64-v8a.
+    implementation("com.qualcomm.qti:qnn-runtime:2.47.0")
 
     // Offline OCR (bundled model, no download needed)
     implementation("com.google.mlkit:text-recognition:16.0.1")

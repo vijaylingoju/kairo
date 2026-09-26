@@ -123,12 +123,14 @@ object Indexer {
         if (todo.isEmpty()) return
 
         _status.value = Status(running = true, total = todo.size, message = "Visual index")
+        val passStart = SystemClock.elapsedRealtime()
+        val loadedBefore = Clip.isLoaded()
         for ((i, item) in todo.withIndex()) {
             currentCoroutineContext().ensureActive()  // stop promptly when "Clear all data" cancels the run
             _status.value = _status.value.copy(done = i, current = item.name)
             val t0 = SystemClock.elapsedRealtime()
             try {
-                val bmp = ClipCrop.forClip(decode(ctx, item.uri, 512), isScreenshot(item))
+                val bmp = clipInput(ctx, item)
                 val tDecode = SystemClock.elapsedRealtime() - t0
                 db.setEmbedding(item.id, Clip.embedImage(ctx, bmp))
                 Log.d(TAG, "decode ${item.name} $tDecode ms")
@@ -144,7 +146,14 @@ object Indexer {
             _status.value = _status.value.copy(done = i + 1, lastMs = ms)
             Log.i(TAG, "Embedded ${item.name} in $ms ms")
         }
+        val total = SystemClock.elapsedRealtime() - passStart
+        val load = if (loadedBefore) "" else " (includes CLIP load ${Clip.loadMs} ms)"
+        Log.i(TAG, "Visual pass: ${todo.size} photos in $total ms on ${Clip.accelerator}$load")
     }
+
+    /** The bitmap CLIP sees for a photo: 512 px decode, status/nav bars and flat borders cropped. */
+    internal fun clipInput(ctx: Context, item: MediaItem): Bitmap =
+        ClipCrop.forClip(decode(ctx, item.uri, 512), isScreenshot(item))
 
     private fun placeholder(item: MediaItem) = IndexedImage(
         mediaId = item.id, uri = item.uri.toString(), name = item.name, folder = item.folder,
