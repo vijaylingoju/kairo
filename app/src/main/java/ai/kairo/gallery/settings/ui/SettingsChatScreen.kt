@@ -58,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -73,6 +74,8 @@ private val EXAMPLES = listOf(
     "Do not disturb on",
     "Turn on Wi-Fi",
     "How do I turn on dark mode?",
+    "Is my phone up to date?",
+    "How much storage is left?",
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -254,6 +257,35 @@ private fun AssistantMessage(
                     r.open?.let { spec -> Button(onClick = { onLaunch(spec) }) { Text("Take me there") } }
                 }
 
+                is SettingsResponse.Facts -> {
+                    Text(r.text)
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            r.rows.forEach { (label, value) ->
+                                Row {
+                                    Text(
+                                        label,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.weight(0.4f),
+                                    )
+                                    Text(
+                                        value,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        textAlign = TextAlign.End,
+                                        modifier = Modifier.weight(0.6f),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    r.open?.let { spec -> FilledTonalButton(onClick = { onLaunch(spec) }) { Text(r.openLabel) } }
+                }
+
                 is SettingsResponse.OpenPanel -> {
                     Text(r.text)
                     OutlinedButton(onClick = { onLaunch(r.open) }) { Text("Open again") }
@@ -318,6 +350,8 @@ private fun Context.launch(spec: IntentSpec) {
             return
         } catch (e: ActivityNotFoundException) {
             // try the next one
+        } catch (e: SecurityException) {
+            // another brand's screen that exists here but isn't open to other apps: try the next one
         }
     }
     Toast.makeText(this, "This screen isn't available on this phone", Toast.LENGTH_SHORT).show()

@@ -13,12 +13,13 @@ The assistant then changes the setting, opens the right system panel, or shows s
 | Area | Status |
 |---|---|
 | Chat UI (text + offline voice input) | ✅ Done |
-| Knowledge base of 24 settings (JSON) | ✅ Done |
+| Knowledge base of 28 entries (JSON) | ✅ Done |
+| Phone info answers: device, storage, battery, software update | ✅ Done, tested on phone (Gemma picks them in 1.6–3.5 s) |
 | Keyword agent (no LLM yet) | ✅ Done, tested on phone |
 | Undo for every direct change | ✅ Done |
 | Problem → suggestions (eye strain) | ✅ Done |
 | Single app: gallery home → Settings screen | ✅ Done |
-| Routing unit test | ✅ Passing (36 phrases) |
+| Routing unit test | ✅ Passing (50 phrases) |
 | Commit to `feat/settings-handle` | ⏳ Blocked: git author name/email not set on this machine |
 | Gemma (LLM) agent | ⬜ Not started |
 | Floating guide card, AccessibilityService, QS tile, onboarding | ⬜ Not started |
@@ -45,7 +46,7 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 ```
 
 - The agent only picks a `setting_id` + `action` from the knowledge base. Kotlin code does the actual change. The model never invents settings paths.
-- Responses are typed: `Info`, `Done` (with undo), `Suggestions`, `Guide`, `OpenPanel`, `NeedsPermission`.
+- Responses are typed: `Info`, `Done` (with undo), `Suggestions`, `Guide`, `Facts` (read-only rows + a button), `OpenPanel`, `NeedsPermission`.
 - The same `SettingsAgent` interface is meant for the floating bubble and a Quick Settings tile later.
 
 ### Files
@@ -59,13 +60,15 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 | `settings/KeywordSettingsAgent.kt` | Routing, executors, undo, permission and guide responses |
 | `settings/SystemSettingsController.kt` | Brightness, font scale, timeout, rotation, touch sounds |
 | `settings/DeviceController.kt` | Volumes, silent/vibrate, Do Not Disturb, flashlight |
+| `settings/PhoneInfo.kt` | Read-only answers: phone info, storage, battery, software update (+ `InfoFormat` helpers) |
 | `settings/ui/*` | Chat screen, ViewModel, `SettingsActivity` |
 | `app/src/test/.../SettingsKbRoutingTest.kt` | Runs real phrases through the real JSON |
 
-## Supported settings (24)
+## Supported settings (24) + phone info (4)
 
 | Tier | Settings | How |
 |---|---|---|
+| **Info** (read-only) | phone info, storage, battery, software update | Card with facts + a button to the right screen. No permission needed |
 | **Direct** (with Undo) | brightness, auto-brightness, text size, screen timeout, auto-rotate, media / ring / alarm volume, silent, vibrate, Do Not Disturb, flashlight, touch sounds | Changed by the app |
 | **Panel** | Wi-Fi, mobile data / internet, NFC | System panel pops up (apps can't toggle these since Android 10) |
 | **Guide** | Bluetooth, dark mode, eye protection, airplane mode, location, battery saver, app notifications, hotspot | Numbered steps + "Take me there" deep link |
@@ -93,6 +96,10 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 | Unknown request → help message | ✅ |
 | Screen timeout | ✅ after fix: see below |
 | Gallery → Settings → back navigation | ✅ |
+| "Is my phone up to date?" → patch 1 Aug 2026, Play system update 1 Feb 2026; **Check for updates** opens vivo's System update ("Already the latest system version") | ✅ |
+| "What Android version do I have?" → "iQOO 15 running Android 16 (OriginOS 6)", 12 GB RAM, 256 GB, 1440 × 3168 · 144 Hz; **Open About phone** works | ✅ |
+| "How much storage is left?" → 214 GB free of 256 GB; **Free up space** opens the storage screen | ✅ |
+| "Battery health" → 100%, Good, 33.1 °C, 2 cycles; **Battery settings** opens iQOO's own battery manager (`com.iqoo.powersaving`) | ✅ |
 | Silent / DND actually switching | ⬜ Needs DND access granted first |
 | Ring volume; location / battery saver / hotspot deep links | ⬜ Not yet |
 
@@ -103,6 +110,9 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 - All 20 deep-link intents in the knowledge base resolve (checked with `pm resolve-activity`). Eye protection opens `NIGHT_DISPLAY_SETTINGS`. Hotspot opens vivo's own `VivoTetherSettingsActivity`.
 - `adb shell cmd media_session volume --set` has no effect on OriginOS. Use the volume keys or the app itself to test volume.
 - The first `installDebug` can fail until you accept OriginOS's "Install via USB" prompt on the phone.
+- `android.settings.SYSTEM_UPDATE_SETTINGS` opens **Google Play services' updater**, not vivo's. vivo's updater (`com.bbk.updater`) has no launcher icon; it opens with `com.bbk.updater.action.START_UPDATERACTIVITY`, so that's tried first.
+- The marketing name and skin aren't in `Build`: `ro.vivo.product.release.name` = "iQOO 15", `ro.vivo.os.build.display.id` = "OriginOS 6" (readable by the app through `getprop`). `Build.MODEL` is only "I2501".
+- Apps can't check for OS updates (no public API, and Kairo has no INTERNET). The update card shows how old the security patch is and opens the updater.
 
 ## Known gaps / TODO
 

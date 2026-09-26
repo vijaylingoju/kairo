@@ -67,6 +67,21 @@ class SettingsKbRoutingTest {
             "save battery" to ("battery_saver" to "on"),
             "too many notifications" to ("app_notifications" to "open"),
             "share my internet" to ("hotspot" to "on"),
+            // Info tier
+            "what android version do I have" to ("device_info" to "show"),
+            "about phone" to ("device_info" to "show"),
+            "how much ram does my phone have" to ("device_info" to "show"),
+            "which processor is in this phone" to ("device_info" to "show"),
+            "is my phone up to date" to ("software_update" to "show"),
+            "check for updates" to ("software_update" to "show"),
+            "when was my last security patch" to ("software_update" to "show"),
+            "update my android version" to ("software_update" to "show"),
+            "how much storage is left" to ("storage_info" to "show"),
+            "my memory is full" to ("storage_info" to "show"),
+            "clear cache" to ("storage_info" to "show"),
+            "battery health" to ("battery_info" to "show"),
+            "how much battery is left" to ("battery_info" to "show"),
+            "turn on battery saver" to ("battery_saver" to "on"),
         )
         val failures = cases.mapNotNull { (query, expected) ->
             val actual = route(query)

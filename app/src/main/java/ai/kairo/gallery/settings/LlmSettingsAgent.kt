@@ -65,6 +65,7 @@ class LlmSettingsAgent(context: Context) : SettingsAgent {
             Actions.OFF -> "Turn off"
             Actions.INCREASE -> "Increase"
             Actions.DECREASE -> "Lower"
+            Actions.SHOW -> "Check"
             else -> "Open"
         }
         return Suggestion(
@@ -75,6 +76,7 @@ class LlmSettingsAgent(context: Context) : SettingsAgent {
                 Tier.DIRECT -> "Apply"
                 Tier.PANEL -> "Open"
                 Tier.GUIDE -> "Guide me"
+                Tier.INFO -> "Show"
             },
         )
     }

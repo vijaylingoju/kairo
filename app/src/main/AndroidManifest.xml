@@ -27,11 +27,14 @@
     <!-- Settings assistant: silent mode + Do Not Disturb. Granted by the user on a system screen. -->
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
 
-    <!-- Lets RecognizerIntent resolve on Android 11+ (package visibility). -->
+    <!-- Package visibility (Android 11+). -->
     <queries>
+        <!-- RecognizerIntent (voice input) -->
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
+        <!-- Settings assistant: its version is the "Google Play system update" date. -->
+        <package android:name="com.google.android.modulemetadata" />
     </queries>
 
     <application

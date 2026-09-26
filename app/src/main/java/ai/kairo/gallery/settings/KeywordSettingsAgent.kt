@@ -38,6 +38,7 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
     private val app = context.applicationContext
     private val settings = SystemSettingsController(app)
     private val device = DeviceController(app)
+    private val phoneInfo = PhoneInfo(app)
     val kb: SettingsKb by lazy { SettingsKb.load(app) }
 
     /** One-line snapshot for the LLM prompt, so suggestions fit the current situation. */
@@ -70,7 +71,8 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
             setting != null -> apply(setting.id, detectAction(query, setting))
             else -> SettingsResponse.Info(
                 "I know ${kb.settings.size} settings, like brightness, volume, Do Not Disturb, flashlight, " +
-                    "Wi-Fi and dark mode. You can also describe a problem, like \"my eyes hurt at night\".",
+                    "Wi-Fi and dark mode. You can also describe a problem, like \"my eyes hurt at night\", " +
+                    "or ask about your phone, like \"is my phone up to date?\".",
             )
         }
     }
@@ -88,6 +90,7 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
                         )
                     } ?: guide(setting)
                     Tier.GUIDE -> guide(setting)
+                    Tier.INFO -> phoneInfo.answer(setting) ?: guide(setting)
                 }
             } catch (e: SecurityException) {
                 if (settingId in RINGER_SETTINGS && !device.hasPolicyAccess()) needsPolicyAccess(settingId, action)
@@ -335,7 +338,7 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
         return SettingsResponse.Guide(
             intro ?: setting.note ?: "Here's how to change ${setting.name}:",
             g.steps,
-            g.intents.firstOrNull()?.let { IntentSpec(it, fallbacks = g.intents.drop(1)) },
+            g.intentSpec(),
         )
     }
 

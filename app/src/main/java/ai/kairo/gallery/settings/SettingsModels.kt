@@ -20,6 +20,12 @@ object SettingIds {
     const val TOUCH_SOUNDS = "touch_sounds"
     const val DARK_MODE = "dark_mode"
     const val EYE_PROTECTION = "eye_protection"
+
+    // Read-only (info tier)
+    const val DEVICE_INFO = "device_info"
+    const val STORAGE_INFO = "storage_info"
+    const val BATTERY_INFO = "battery_info"
+    const val SOFTWARE_UPDATE = "software_update"
 }
 
 object Actions {
@@ -28,6 +34,7 @@ object Actions {
     const val ON = "on"
     const val OFF = "off"
     const val OPEN = "open"
+    const val SHOW = "show"
 }
 
 /** An intent the UI should launch. Kept as data so the agent never needs an Activity. */
@@ -66,6 +73,14 @@ sealed interface SettingsResponse {
         override val text: String,
         val steps: List<String>,
         val open: IntentSpec?,
+    ) : SettingsResponse
+
+    /** Read-only answer about the phone: a headline, label/value rows and an optional button. */
+    data class Facts(
+        override val text: String,
+        val rows: List<Pair<String, String>>,
+        val open: IntentSpec?,
+        val openLabel: String,
     ) : SettingsResponse
 
     /** System panel / dialog (Wi-Fi, internet, NFC...). The UI auto-launches it. */

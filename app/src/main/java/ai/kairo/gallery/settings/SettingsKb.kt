@@ -4,9 +4,13 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 
-enum class Tier { DIRECT, PANEL, GUIDE }
+/** INFO = read-only answers about the phone (version, storage, battery...). */
+enum class Tier { DIRECT, PANEL, GUIDE, INFO }
 
-data class KbGuide(val intents: List<String>, val steps: List<String>)
+data class KbGuide(val intents: List<String>, val steps: List<String>) {
+    /** The first intent, with the rest as fallbacks; null when there's nothing to open. */
+    fun intentSpec(): IntentSpec? = intents.firstOrNull()?.let { IntentSpec(it, fallbacks = intents.drop(1)) }
+}
 
 data class KbSetting(
     val id: String,

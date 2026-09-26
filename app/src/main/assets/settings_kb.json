@@ -2,7 +2,7 @@
   "version": 1,
   "_notes": [
     "Hand-curated knowledge base for the Settings Assistant. The agent (keyword or LLM) may only pick an id + action from here.",
-    "tier: direct = Kotlin changes it, panel = system panel pops up over the app, guide = steps + deep link.",
+    "tier: direct = Kotlin changes it, panel = system panel pops up over the app, guide = steps + deep link, info = read-only facts about the phone (the button opens guide.intents).",
     "actions: the first one is the default when the query has no direction ('flashlight' -> on).",
     "guide.intents: tried in order until one resolves. All were checked with `pm resolve-activity` on the iQOO (OriginOS 6).",
     "guide.steps: OriginOS menu labels are NOT verified yet."
@@ -284,6 +284,51 @@
       "guide": {
         "intents": ["android.settings.TETHER_SETTINGS", "android.settings.WIRELESS_SETTINGS"],
         "steps": ["Open Settings", "Tap Personal hotspot", "Turn it on or off"]
+      }
+    },
+    {
+      "id": "device_info",
+      "name": "Phone info",
+      "tier": "info",
+      "synonyms": ["about phone", "about my phone", "phone info", "phone information", "device info", "device information", "phone details", "phone specs", "specs", "specifications", "android version", "which android", "what android", "os version", "originos version", "build number", "model number", "phone model", "which phone", "what phone", "processor", "chipset", "cpu", "ram", "memory", "kernel", "uptime", "up time"],
+      "actions": ["show"],
+      "guide": {
+        "intents": ["android.settings.DEVICE_INFO_SETTINGS"],
+        "steps": ["Open Settings", "Tap About phone"]
+      }
+    },
+    {
+      "id": "storage_info",
+      "name": "Storage",
+      "tier": "info",
+      "synonyms": ["storage", "space", "free space", "storage space", "storage full", "phone storage", "internal storage", "memory full", "memory is full", "out of space", "disk space", "free up space", "clean up", "cleanup", "clean my phone", "junk files", "cache", "clear cache"],
+      "actions": ["show"],
+      "guide": {
+        "intents": ["android.settings.INTERNAL_STORAGE_SETTINGS", "android.os.storage.action.MANAGE_STORAGE"],
+        "steps": ["Open Settings", "Tap Storage", "Tap Clean up or Free up space"]
+      }
+    },
+    {
+      "id": "battery_info",
+      "name": "Battery",
+      "tier": "info",
+      "synonyms": ["battery info", "battery health", "battery status", "battery level", "battery percentage", "battery percent", "battery temperature", "battery temp", "how much battery", "battery left", "charge level", "charging status", "battery cycles", "charge cycles"],
+      "actions": ["show"],
+      "guide": {
+        "intents": ["android.intent.action.POWER_USAGE_SUMMARY", "android.settings.BATTERY_SAVER_SETTINGS"],
+        "steps": ["Open Settings", "Tap Battery"]
+      }
+    },
+    {
+      "id": "software_update",
+      "name": "Software update",
+      "tier": "info",
+      "synonyms": ["software update", "system update", "os update", "android update", "update my phone", "update my android", "update the phone", "update phone", "phone update", "check for updates", "check for update", "check updates", "any updates", "new update", "latest update", "latest version", "up to date", "security patch", "security update", "firmware", "upgrade", "update", "updates"],
+      "actions": ["show"],
+      "note": "Kairo stays offline, so it can't look for new versions itself.",
+      "guide": {
+        "intents": ["com.bbk.updater.action.START_UPDATERACTIVITY", "android.settings.SYSTEM_UPDATE_SETTINGS", "android.settings.DEVICE_INFO_SETTINGS"],
+        "steps": ["Open Settings", "Tap System update", "Tap Check for updates"]
       }
     }
   ]
