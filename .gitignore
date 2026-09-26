@@ -5,3 +5,8 @@ local.properties
 *.iml
 .DS_Store
 *.litertlm
+
+# Eval outputs contain OCR/fields from real personal photos (e.g. Aadhaar) - never commit
+tools/eval/results/
+tools/eval/out/
+*.stackdump

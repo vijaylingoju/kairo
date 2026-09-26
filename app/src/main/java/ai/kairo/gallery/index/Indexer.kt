@@ -17,7 +17,10 @@ import ai.kairo.gallery.embed.Clip
 import ai.kairo.gallery.llm.Llm
 import ai.kairo.gallery.llm.Prompts
 import com.google.ai.edge.litertlm.Content
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -35,6 +38,7 @@ import kotlin.math.min
  */
 object Indexer {
     private const val TAG = "KairoIndexer"
+    private const val STATUS_BAR_FRACTION = 0.04f
 
     data class Status(
         val running: Boolean = false,
@@ -52,6 +56,18 @@ object Indexer {
 
     fun hasGalleryPermission(ctx: Context): Boolean =
         ctx.checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
+
+    /**
+     * Testing reset: wipes the whole index (records, text index, CLIP vectors).
+     * Waits for any cancelled run to let go of the lock first, so nothing is written back afterwards.
+     */
+    suspend fun clearAll(ctx: Context) = lock.withLock {
+        withContext(Dispatchers.IO) {
+            IndexDb.get(ctx).clearAll()
+            _status.value = Status(message = "All index data cleared")
+            Log.i(TAG, "Index cleared by user")
+        }
+    }
 
     suspend fun run(ctx: Context, force: Boolean) = lock.withLock {
         withContext(Dispatchers.IO) {
@@ -79,6 +95,7 @@ object Indexer {
             // Pass 2 (slow, seconds/image): OCR + Gemma for categories, text and exact fields.
             _status.value = Status(running = true, total = todo.size, message = "Indexing…")
             todo.forEachIndexed { i, item ->
+                ensureActive()  // stop promptly when "Clear all data" cancels the run
                 _status.value = _status.value.copy(done = i, current = item.name)
                 val img = indexOne(ctx, item)
                 db.upsert(img)
@@ -105,15 +122,18 @@ object Indexer {
 
         _status.value = Status(running = true, total = todo.size, message = "Visual index")
         for ((i, item) in todo.withIndex()) {
+            currentCoroutineContext().ensureActive()  // stop promptly when "Clear all data" cancels the run
             _status.value = _status.value.copy(done = i, current = item.name)
             val t0 = SystemClock.elapsedRealtime()
             try {
-                val bmp = decode(ctx, item.uri, 512)
+                val bmp = ClipCrop.forClip(decode(ctx, item.uri, 512), isScreenshot(item))
                 val tDecode = SystemClock.elapsedRealtime() - t0
                 db.setEmbedding(item.id, Clip.embedImage(ctx, bmp))
                 Log.d(TAG, "decode ${item.name} $tDecode ms")
                 // New photo: add a placeholder row so it shows up in search before Gemma reads it.
                 if (item.id !in known) db.upsert(placeholder(item))
+            } catch (c: CancellationException) {
+                throw c
             } catch (t: Throwable) {
                 Log.w(TAG, "CLIP failed for ${item.name}", t)
                 if (!Clip.isLoaded()) return  // model can't load; don't retry per image
@@ -138,10 +158,11 @@ object Indexer {
         var lng: Double? = null
         try {
             // 1) Decode once at OCR resolution (ImageDecoder also applies EXIF rotation).
-            val big = decode(ctx, item.uri, 2048)
+            // Screenshots: full resolution (tall 1264x2780 shots lose letters at 2048), photos: 2048.
+            val big = decode(ctx, item.uri, if (isScreenshot(item)) 3072 else 2048)
 
             // 2) OCR — exact text.
-            ocr = Ocr.read(big)
+            ocr = Ocr.read(big, skipTopFraction = if (isScreenshot(item)) STATUS_BAR_FRACTION else 0f)
 
             // 3) Metadata (GPS).
             readLatLng(ctx, item.uri)?.let { lat = it.first; lng = it.second }
@@ -153,9 +174,9 @@ object Indexer {
             var llmError: String? = null
             try {
                 json = Llm.extractJson(
-                    Llm.generate(ctx, Content.ImageBytes(jpeg), Content.Text(prompt))
+                    Llm.generate(ctx, Content.ImageBytes(jpeg), Content.Text(prompt), maxTokens = 400, timeoutMs = 45_000)
                 ) ?: Llm.extractJson( // one retry if the JSON was broken
-                    Llm.generate(ctx, Content.ImageBytes(jpeg), Content.Text(prompt))
+                    Llm.generate(ctx, Content.ImageBytes(jpeg), Content.Text(prompt), maxTokens = 400, timeoutMs = 45_000)
                 )
                 if (json == null) llmError = "Model returned invalid JSON"
             } catch (t: Throwable) {
@@ -211,6 +232,9 @@ object Indexer {
             )
         }
     }
+
+    private fun isScreenshot(item: MediaItem): Boolean =
+        item.name.startsWith("Screenshot", ignoreCase = true) || "Screenshots" in item.folder
 
     private fun decode(ctx: Context, uri: Uri, maxSide: Int): Bitmap {
         val source = ImageDecoder.createSource(ctx.contentResolver, uri)

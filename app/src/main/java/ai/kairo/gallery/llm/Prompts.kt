@@ -4,7 +4,7 @@ object Prompts {
 
     val CATEGORIES = listOf(
         "pan_card", "aadhaar_card", "driving_license", "passport",
-        "train_ticket", "flight_ticket", "movie_event_ticket",
+        "train_ticket", "bus_ticket", "flight_ticket", "movie_event_ticket",
         "bill_invoice", "payment_receipt", "chat_screenshot",
         "document", "person", "food", "place", "other"
     )
@@ -37,12 +37,15 @@ Categories: ${CATEGORIES.joinToString(", ")}.
 Output exactly one JSON object on a single line, no markdown:
 {"categories":[],"keywords":[],"wanted_field":null,"date_from":null,"date_to":null,"visual":null}
 - categories: zero or more from the list above. Leave empty if none clearly fits.
-- keywords: important words to match in the image text (names, places, titles). Lowercase.
+- The user may write in any language (English, Telugu, Hindi...) and may misspell words. Always answer in English, with spelling fixed and slang turned into plain dictionary words (doggo -> dog, pic -> photo).
+- keywords: important English words to match in the image text or description (names, places, titles, objects). Lowercase.
 - wanted_field: null, or one of ${FIELD_KEYS.joinToString(", ")} if the user asks for a specific value.
 - date_from / date_to: "yyyy-MM-dd" or null. Only when the user mentions a time period.
-- visual: a short English phrase describing what the photo looks like, or null for pure document/value questions.
+- visual: REQUIRED whenever the request is about what a photo shows (objects, animals, people, food, places, scenes): a short English phrase describing the photo. null only for document/value questions.
 Example: "what's my PAN number" -> {"categories":["pan_card"],"keywords":[],"wanted_field":"id_number","date_from":null,"date_to":null,"visual":null}
 Example: "sunset at the lake with my dog" -> {"categories":[],"keywords":["lake"],"wanted_field":null,"date_from":null,"date_to":null,"visual":"a dog at a lake during sunset"}
+Example: "icecream" -> {"categories":[],"keywords":["ice","cream"],"wanted_field":null,"date_from":null,"date_to":null,"visual":"an ice cream cone"}
+Example: "कुत्ता" -> {"categories":[],"keywords":["dog"],"wanted_field":null,"date_from":null,"date_to":null,"visual":"a dog"}
 User: $userQuery
 """
 }

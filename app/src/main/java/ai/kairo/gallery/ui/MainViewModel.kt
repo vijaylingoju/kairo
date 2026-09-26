@@ -57,6 +57,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun indexNow(force: Boolean) = IndexScheduler.runNow(ctx, force)
 
+    /** Testing: stop indexing, wipe the index, then index everything again from scratch. */
+    fun clearAllAndReindex() {
+        viewModelScope.launch {
+            IndexScheduler.cancelAll(ctx)
+            Indexer.clearAll(ctx)
+            _result.value = null
+            _allImages.value = emptyList()
+            IndexScheduler.scheduleWatch(ctx)
+            IndexScheduler.runNow(ctx)
+        }
+    }
+
     fun setWatchScreenshots(on: Boolean) {
         Prefs.setWatchScreenshots(ctx, on)
         _watchScreenshots.value = on

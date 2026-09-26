@@ -8,6 +8,8 @@ import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -15,6 +17,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Single shared Gemma engine. Loading takes several seconds, so it's done once and reused.
@@ -31,8 +34,20 @@ object Llm {
     private val loadLock = Mutex()
     private val runLock = Mutex()
 
-    fun modelFile(ctx: Context): File =
-        File(ctx.getExternalFilesDir(null), MODEL_FILE_NAME)
+    /**
+     * Picks the strongest Gemma pushed to the app folder (E4B > E2B > anything else),
+     * falling back to the generic model.litertlm name.
+     */
+    fun modelFile(ctx: Context): File {
+        val dir = ctx.getExternalFilesDir(null)
+        val candidates = dir?.listFiles { f -> f.isFile && f.name.endsWith(".litertlm") }.orEmpty()
+        fun rank(f: File) = when {
+            "e4b" in f.name.lowercase() -> 0
+            "e2b" in f.name.lowercase() -> 1
+            else -> 2
+        }
+        return candidates.minByOrNull(::rank) ?: File(dir, MODEL_FILE_NAME)
+    }
 
     fun isReady(): Boolean = engine != null
 
@@ -68,12 +83,13 @@ object Llm {
         var lastError: Throwable? = null
         for ((name, config) in attempts) {
             try {
-                _state.value = "Loading Gemma on $name…"
+                _state.value = "Loading ${file.name} on $name…"
                 val t0 = System.currentTimeMillis()
                 val e = Engine(config())
                 e.initialize()
                 engine = e
-                _state.value = "Gemma ready on $name (loaded in ${System.currentTimeMillis() - t0} ms)"
+                _state.value = "${file.nameWithoutExtension} ready on $name (loaded in ${System.currentTimeMillis() - t0} ms)"
+                Log.i(TAG, _state.value)
                 return e
             } catch (t: Throwable) {
                 Log.w(TAG, "Backend $name failed", t)
@@ -85,12 +101,35 @@ object Llm {
     }
 
     /** One fresh conversation per call, so earlier images never leak into the next answer. */
-    suspend fun generate(ctx: Context, vararg contents: Content): String {
+    /**
+     * Every call is bounded: at most [maxTokens] output tokens, and a watchdog cancels the native
+     * generation after [timeoutMs]. Without this one runaway answer (seen in testing: a query that never
+     * finished) holds [runLock] forever and blocks every later search and indexing step.
+     */
+    suspend fun generate(
+        ctx: Context,
+        vararg contents: Content,
+        maxTokens: Int = 384,
+        timeoutMs: Long = 30_000,
+    ): String {
         val e = ensure(ctx)
         return withContext(Dispatchers.IO) {
             runLock.withLock {
                 e.createConversation().use { convo ->
-                    convo.sendMessage(Contents.of(*contents)).toString()
+                    val timedOut = AtomicBoolean(false)
+                    val watchdog = launch {
+                        delay(timeoutMs)
+                        timedOut.set(true)
+                        Log.w(TAG, "Generation exceeded $timeoutMs ms, cancelling")
+                        convo.cancelProcess()
+                    }
+                    try {
+                        val reply = convo.sendMessage(Contents.of(*contents), maxOutputToken = maxTokens).toString()
+                        if (timedOut.get()) throw IllegalStateException("Gemma timed out after $timeoutMs ms")
+                        reply
+                    } finally {
+                        watchdog.cancel()
+                    }
                 }
             }
         }

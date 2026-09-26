@@ -1,0 +1,86 @@
+# Kairo AI: Decisions Log
+
+Every important decision made while building Kairo Gallery, in order, with the reason and what we chose *not* to do.
+Status: ✅ in place · 🔄 changed later · ⏳ in progress · 🅿️ parked
+
+---
+
+## Phase 1: Idea and approach (before 2026-09-25)
+
+| # | Decision | Why | Alternatives rejected | Status |
+|---|---|---|---|---|
+| D1 | Kairo AI has 3 features: **Gallery AI search**, **Screenshot Brain**, **Settings agent**. Build **Gallery AI first**. | Most visual demo; the other two can reuse its index | Building all three at once | ✅ |
+| D2 | **Everything on-device, nothing in the cloud** | The pitch is "Privacy is the product": airplane-mode demo, no accounts | Cloud vision APIs (faster to build, but break the promise) | ✅ |
+| D3 | LLM = **Gemma 4 E2B** on **LiteRT-LM** | Works offline, understands images and text, ships as `.litertlm` | Cloud Gemini; text-only models | 🔄 upgrading to E4B (D24) |
+| D4 | **Step 0 test in AI Edge Gallery** before writing code | Check the model on a real ticket first | – | ✅ It labelled the BookMyShow ticket correctly but **misread the booking ID, seats and theatre** |
+| D5 | Because of D4: **OCR gives the exact text, Gemma only sorts and copies, regex checks every number** | A small LLM can't be trusted with digits. Any value not found in the OCR text is dropped | Trusting Gemma's values directly | ✅ |
+| D6 | OCR = **Google ML Kit Text Recognition** (bundled Latin model) | Offline, free, no download, good on screenshots | Tesseract (slower, bigger); Gemma-only reading | ✅ Runs on **CPU** |
+
+## Phase 2: First build (2026-09-25)
+
+| # | Decision | Why | Alternatives rejected | Status |
+|---|---|---|---|---|
+| D7 | Demo scope: **only `Pictures/Kairo`**, **images only** (no videos), optional new screenshots | Controlled demo set, fast indexing | Whole gallery (slow with Gemma at ~3 s per photo) | ✅ (whole gallery is a later goal) |
+| D8 | Storage = **plain SQLite + FTS4**, no Room | Fewer build and annotation-processing problems; FTS4 gives fast text search | Room; a vector DB | ✅ |
+| D9 | Background indexing = **WorkManager** triggered by gallery changes (2–10 s delay) + foreground notification | New photos get indexed automatically, even with the app closed | Polling; a manual button only | ✅ |
+| D10 | Search = **rules first, Gemma fills the gaps**. Gemma never sees the gallery, only writes a filter | Rules are instant and exact; the LLM handles odd wording; privacy + speed | Sending all captions to the LLM | ✅ |
+| D11 | Gemma on **GPU**, falls back to CPU | GPU is about 5× faster for prefill | CPU only | ✅ |
+| D12 | **Reuse Edge Gallery's E2B download**: copy it on the phone (`adb shell cp`) into the app's folder | No second 2.6 GB download; Android blocks reading another app's folder | Download again | ✅ (OnePlus 13R) |
+
+## Phase 3: Semantic search (2026-09-25 to 26)
+
+| # | Decision | Why | Alternatives rejected | Status |
+|---|---|---|---|---|
+| D13 | **Add image-text embeddings (CLIP)** | The deck promises "the sunset at the lake with my dog". Keyword search can't find a *golden retriever* in a photo with no text unless Gemma happened to use those words | Better Gemma tags only (still word-matching); captioning + a text-embedding model (slow, and depends on the caption) | ✅ |
+| D14 | CLIP model = **Qualcomm AI Hub OpenAI-CLIP ViT-B/16, TFLite float** (MIT) | Documented inputs and outputs, tuned for Snapdragon, quoted at ~22 ms on the NPU | MobileCLIP TFLite (inputs, outputs and tokenizer undocumented); SigLIP (no ready TFLite); ViT-L (too big) | ✅ Downside: **600 MB**, image and text parts in **one file** |
+| D15 | CLIP runtime = **LiteRT 2.2 `CompiledModel` API** | Official successor to TFLite; picks GPU/NPU/CPU; no clash with LiteRT-LM's native libraries | Old TFLite `Interpreter` | ✅ |
+| D16 | **Write the CLIP tokenizer ourselves in Kotlin** + unit tests against OpenAI's reference token IDs | No Android library for it; a silent tokenizer bug would ruin search | Tokenizer model on the phone | ✅ 4/4 tests pass |
+| D17 | Vocab stored as **plain text** in `assets/` | The Android build silently un-gzips `*.gz` assets and renames them (found on the phone) | `.gz` asset | ✅ |
+| D18 | Embeddings in a **separate `embeddings` table**; DB v2 upgrade **keeps old data** | Re-indexing with Gemma must never wipe the vectors; no forced re-index for users | Extra column on `images`; drop and rebuild | ✅ |
+| D19 | **Two-pass indexing**: fast CLIP pass (~0.5 s) → deep OCR + Gemma pass (~3–4 s) | Photos are searchable within seconds; placeholder rows ("reading…") until Gemma finishes | One combined pass (slow first result) | ✅ |
+| D20 | **Hybrid ranking**: text score (category +5, keyword +2, field +1) + CLIP score `(sim − 0.20) × 100` | Documents need exact text; photos need meaning | CLIP only (can't read ID numbers); text only | ✅ |
+| D21 | Document questions (ID/ticket/bill, or asking for a value) → **CLIP weight × 0.3**. Otherwise CLIP leads | "My PAN number" must use exact OCR; "cute puppy" must use visuals | Same weight for both | ✅ |
+| D22 | Cut-offs **MIN_SIM 0.20, REL_GAP 0.06 → 0.04** | "cute puppy" let in 2 unrelated screenshots at 0.06 | – | 🟡 tuned on only 14 photos |
+| D23 | Gemma's query prompt returns a **`visual` phrase**; CLIP averages 4 prompts (raw, "a photo of …", Gemma phrase ×2). The index prompt now asks for **species/breed + general tags**. **"other"** is no longer used as a filter | Better CLIP matching; stops "other" flooding results | – | ✅ |
+| D24 | CLIP accelerator: **GPU only** ❌ (failed to compile) → **CPU, 1 thread** (~2 s per photo) → **GPU + CPU, 4 threads** (~0.4–0.7 s) | The GPU can't run some of the text part's integer operations; mixed mode lets the CPU run those | NPU (needs LiteRT's Qualcomm NPU runtime) | 🔄 **NPU is the next step** |
+
+## Phase 4: Git and repo
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| D25 | Semantic search built on the branch **`feature/semantic-search`** (repo `vijaylingoju/KairoAI`), pushed **without merging into main** | Keep `main` stable until tested on the phone | ✅ PR not opened (stopped by user) |
+| D26 | Code moved to a **new repo `vijaylingoju/kairo`** (`main`), same code | User's choice for the hackathon | ✅ |
+| D27 | **Models are never committed**. They live outside OneDrive (`%USERPROFILE%\kairo-models`) and are pushed with `adb` | GB-sized files; OneDrive would sync them to the cloud | ✅ |
+
+## Phase 5: iQOO 15 (2026-09-26, at the hackathon)
+
+| # | Decision | Why | Alternatives rejected | Status |
+|---|---|---|---|---|
+| D28 | Test phone changed: **OnePlus 13R → iQOO 15** (Snapdragon 8 Elite Gen 5 / SM8850, 16 GB RAM, Android 16, Hexagon NPU driver present) | It's the device named in the pitch deck; much stronger | – | ✅ connected, app installed, CLIP pushed |
+| D29 | **Parked the Settings assistant**; focus only on making Gallery AI the best it can be | Deliver one excellent feature for the demo | Building both at once | 🅿️ |
+| D30 | LLM upgrade = **Gemma 4 E4B** (`gemma-4-E4B-it.litertlm`, 3.66 GB, vision included) | About 2× the reasoning of E2B, <1 GB GPU memory, ~22 tokens/s decode | **12B** (6.9 GB, likely 10 s+ per photo, too slow for indexing); 26B/31B (too big) | ⏳ downloading |
+| D31 | App **automatically picks the best Gemma** in its folder (E4B > E2B > `model.litertlm`) and shows the model name on screen | Swap models by just pushing a file; shows the upgrade during the demo | Fixed filename | ✅ built, not committed |
+| D32 | Network workaround: the hackathon Wi-Fi gives **50–90 KB/s** (~10 h for E4B); the phone's adb shell has **no DNS** (worked around by pinning IPs, but the same Wi-Fi is just as slow) | – | Options: USB tethering over 5G, hotspot, copy from a teammate, or E2B from the OnePlus over USB | ⏳ waiting for user |
+
+## Phase 6: End-to-end evaluation on iQOO 15 (2026-09-26, see [Report #2](reports/REPORT-02_2026-09-26_1600-IST_gemma4-e4b-iqoo15-evaluation.md))
+
+| # | Decision | Why | Status |
+|---|---|---|---|
+| D33 | **Repeatable eval harness**: debug-only adb receiver + 41 labelled scenarios + synthetic fake documents (`tools/eval/`) | Every change is measured against the same test set, not eyeballed | ✅ baseline 10/41 → final 39/41 |
+| D34 | **Remove the INTERNET permission** (merged in by ML Kit's `datatransport`) | "Zero network calls" must be enforced by the OS, not just by our code | ✅ |
+| D35 | **Every Gemma call is bounded** (token cap + watchdog `cancelProcess()`) | A runaway generation froze all searches during testing | ✅ |
+| D36 | **Gemma's tags decide what's included; CLIP ranks and confirms.** A CLIP-only result needs adjusted score ≥ 0.08 | Calibration: CLIP margins were only 0.003–0.022; negatives scored up to 0.069 | ✅ precision 0.35 → 0.98 |
+| D37 | **Fast path: skip Gemma when rules fully understand the question** | Same accuracy for document questions, 0.11–0.17 s instead of ~3 s | ✅ 15/41 queries |
+| D38 | Field extraction: **IDs only on ID cards and only if regex-valid**; OCR-tolerant patterns (O→0, `0ct`, `B2I 34`); status bar excluded from OCR | Gemma copies misread or unrelated values | ✅ 10 unit tests from real OCR |
+| D39 | Eval results are **git-ignored** | They contain OCR of real personal documents (Aadhaar) | ✅ |
+
+---
+
+## Open decisions (to make next)
+
+1. **CLIP on the NPU**: LiteRT Qualcomm NPU runtime vs Qualcomm's own QNN build of the model. It makes the "NPU" claim in the deck true and should give ~20× speed.
+2. **Smaller / split CLIP** (MobileCLIP-S2 or 8-bit): 150 MB instead of 600 MB, no wasted text-part work.
+3. **Whole gallery vs `Pictures/Kairo`** for the demo.
+4. **Skip Gemma for plain camera photos** (no OCR text + confident CLIP) to index about 5× faster.
+5. **Fingerprint lock + masking** for ID numbers.
+6. **UI refinement** (list in `KAIRO_CHECKLIST.md` §8).

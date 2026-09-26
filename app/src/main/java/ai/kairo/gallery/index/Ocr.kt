@@ -14,9 +14,19 @@ object Ocr {
         TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     }
 
-    suspend fun read(bitmap: Bitmap): String = suspendCancellableCoroutine { cont ->
+    /**
+     * @param skipTopFraction drop text blocks that start inside this top strip of the image.
+     * Used for screenshots so the status bar ("13:04", "5G", "42%") never becomes a field.
+     */
+    suspend fun read(bitmap: Bitmap, skipTopFraction: Float = 0f): String = suspendCancellableCoroutine { cont ->
         recognizer.process(InputImage.fromBitmap(bitmap, 0))
-            .addOnSuccessListener { result -> cont.resume(result.text) }
+            .addOnSuccessListener { result ->
+                val cut = bitmap.height * skipTopFraction
+                val text = if (cut <= 0f) result.text else result.textBlocks
+                    .filter { b -> (b.boundingBox?.top ?: Int.MAX_VALUE) >= cut }
+                    .joinToString("\n") { it.text }
+                cont.resume(text)
+            }
             .addOnFailureListener { e -> cont.resumeWithException(e) }
     }
 }

@@ -121,6 +121,7 @@ fun KairoScreen(vm: MainViewModel, hasPerm: Boolean, onGrant: () -> Unit) {
 
     var query by rememberSaveable { mutableStateOf("") }
     var selected by remember { mutableStateOf<IndexedImage?>(null) }
+    var confirmClear by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     Scaffold(
@@ -160,6 +161,9 @@ fun KairoScreen(vm: MainViewModel, hasPerm: Boolean, onGrant: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 4.dp)) {
                 OutlinedButton(onClick = { vm.indexNow(false) }) { Text("Index now") }
                 OutlinedButton(onClick = { vm.indexNow(true) }) { Text("Re-index all") }
+            }
+            TextButton(onClick = { confirmClear = true }) {
+                Text("Clear all data & start fresh", color = MaterialTheme.colorScheme.error)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Switch(checked = watch, onCheckedChange = { vm.setWatchScreenshots(it) })
@@ -215,6 +219,28 @@ fun KairoScreen(vm: MainViewModel, hasPerm: Boolean, onGrant: () -> Unit) {
     }
 
     selected?.let { img -> DetailDialog(img) { selected = null } }
+
+    if (confirmClear) {
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            title = { Text("Clear all data?") },
+            text = {
+                Text(
+                    "Deletes the whole search index (categories, text, fields and visual fingerprints) " +
+                        "and indexes every photo again from scratch.\n\nYour photos and the AI model files are not touched."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmClear = false
+                    query = ""
+                    selected = null
+                    vm.clearAllAndReindex()
+                }) { Text("Clear & re-index", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } },
+        )
+    }
 }
 
 private fun statusLine(s: Indexer.Status): String =
