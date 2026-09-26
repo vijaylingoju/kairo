@@ -26,6 +26,12 @@ object QueryParser {
         return EYE_STRAIN_WORDS.any { " $it " in q }
     }
 
+    /** "My grandma can't read the screen": reading is hard for the user, not one specific setting. */
+    fun isLowVision(query: String): Boolean {
+        val q = SettingsKb.normalize(query)
+        return LOW_VISION_PHRASES.any { it in q }
+    }
+
     /** "set my beach photo as wallpaper" → "beach": what to look for in the gallery. Empty if no photo was described. */
     fun wallpaperPhoto(query: String): String =
         SettingsKb.normalize(query).trim().split(' ').filter { it !in WALLPAPER_FILLER }.joinToString(" ")
@@ -56,6 +62,13 @@ object QueryParser {
     private val OFF_WORDS = listOf("off", "disable", "deactivate", "unmute")
     private val ON_WORDS = listOf("on", "enable", "activate", "start", "use")
     private val EYE_STRAIN_WORDS = listOf("eye", "eyes", "burn", "burning", "strain", "headache", "squint", "sore")
+
+    /** Not "can't see": "I can't see the screen in the sun" is about brightness. */
+    private val LOW_VISION_PHRASES = listOf(
+        "can't read", "cant read", "cannot read", "hard to read", "difficult to read", "trouble reading",
+        "eyesight", "poor vision", "low vision", "weak eyes", "old eyes", "blurry",
+        "grandma", "grandpa", "grandmother", "grandfather", "elderly",
+    ).map(SettingsKb::normalize)
 
     /** Words about the wallpaper itself, not about the photo. */
     private val WALLPAPER_FILLER = setOf(

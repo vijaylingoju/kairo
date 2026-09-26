@@ -9,22 +9,27 @@ import ai.kairo.gallery.settings.SettingIds.APP_INFO
 import ai.kairo.gallery.settings.SettingIds.APP_TIMER
 import ai.kairo.gallery.settings.SettingIds.AUTO_BRIGHTNESS
 import ai.kairo.gallery.settings.SettingIds.AUTO_ROTATE
+import ai.kairo.gallery.settings.SettingIds.BOLD_TEXT
 import ai.kairo.gallery.settings.SettingIds.BRIGHTNESS
 import ai.kairo.gallery.settings.SettingIds.DARK_MODE
+import ai.kairo.gallery.settings.SettingIds.DISPLAY_SIZE
 import ai.kairo.gallery.settings.SettingIds.DND
 import ai.kairo.gallery.settings.SettingIds.EYE_PROTECTION
 import ai.kairo.gallery.settings.SettingIds.FLASHLIGHT
 import ai.kairo.gallery.settings.SettingIds.FONT_SIZE
+import ai.kairo.gallery.settings.SettingIds.MAGNIFICATION
 import ai.kairo.gallery.settings.SettingIds.MEDIA_VOLUME
 import ai.kairo.gallery.settings.SettingIds.PHONE_CHECKUP
 import ai.kairo.gallery.settings.SettingIds.RING_VOLUME
 import ai.kairo.gallery.settings.SettingIds.SCREEN_TIMEOUT
 import ai.kairo.gallery.settings.SettingIds.SILENT_MODE
 import ai.kairo.gallery.settings.SettingIds.TOUCH_SOUNDS
+import ai.kairo.gallery.settings.SettingIds.TOUCH_VIBRATION
 import ai.kairo.gallery.settings.SettingIds.VIBRATE_MODE
 import ai.kairo.gallery.settings.SettingIds.WALLPAPER
 import ai.kairo.gallery.settings.QueryParser.detectAction
 import ai.kairo.gallery.settings.QueryParser.isEyeStrain
+import ai.kairo.gallery.settings.QueryParser.isLowVision
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -44,6 +49,7 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
     private val device = DeviceController(app)
     private val phoneInfo = PhoneInfo(app)
     private val wallpapers = Wallpapers(app)
+    private val a11y = AccessibilityController(app)
     val kb: SettingsKb by lazy { SettingsKb.load(app) }
 
     /** The extra detail a setting needs from the query, e.g. which photo for the wallpaper. */
@@ -76,6 +82,8 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
         when {
             // "Eye protection" / "dark mode" are explicit requests, not the eye-strain problem.
             setting != null && setting.id in setOf(EYE_PROTECTION, DARK_MODE) -> apply(setting.id, detectAction(query, setting))
+            // Before eye strain: "my grandma's eyes are weak" is about reading, not tired eyes.
+            isLowVision(query) -> lowVisionSuggestions()
             // "My phone is burning hot" is about the phone, not the user's eyes.
             isEyeStrain(query) && setting?.id != PHONE_CHECKUP -> eyeStrainSuggestions()
             setting != null -> apply(setting.id, detectAction(query, setting), valueFor(setting.id, query))
@@ -100,7 +108,9 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
                             IntentSpec(panel, fallbacks = setting.guide?.intents.orEmpty()),
                         )
                     } ?: guide(setting)
-                    Tier.GUIDE -> guide(setting)
+                    Tier.GUIDE ->
+                        if (setting.id in SecureSwitches.ids && a11y.canWrite()) secureSwitch(setting, action)
+                        else guide(setting)
                     Tier.INFO -> phoneInfo.answer(setting) ?: guide(setting)
                 }
             } catch (e: SecurityException) {
@@ -138,6 +148,8 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
                 DND -> device.setInterruptionFilter(previous.toInt())
                 FLASHLIGHT -> device.setTorch(previous.toBoolean())
                 TOUCH_SOUNDS -> setTouchSounds(previous.toBoolean())
+                TOUCH_VIBRATION -> settings.setHaptic(previous.toBoolean())
+                in SecureSwitches.ids -> a11y.restore(token.settingId, previous)
                 else -> return@withContext SettingsResponse.Info("Nothing to undo.")
             }
             SettingsResponse.Done("${setting.name} restored.", undo = null)
@@ -168,9 +180,17 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
             DND -> toggleDnd(setting, action)
             FLASHLIGHT -> toggleFlashlight(setting, action)
             TOUCH_SOUNDS -> toggle(setting, settings.isTouchSoundsOn(), action, ::setTouchSounds)
+            TOUCH_VIBRATION -> toggle(setting, settings.isHapticOn(), action, settings::setHaptic)
             WALLPAPER -> wallpapers.choose(setting, action, value)
             else -> guide(setting)
         }
+    }
+
+    /** Accessibility switches Android keeps for system apps. Only reached when WRITE_SECURE_SETTINGS was granted. */
+    private fun secureSwitch(setting: KbSetting, action: String): SettingsResponse {
+        val previous = a11y.snapshot(setting.id)
+        val response = toggle(setting, a11y.isOn(setting.id), action) { a11y.set(setting.id, it) }
+        return if (response is SettingsResponse.Done) response.copy(undo = UndoToken(setting.id, previous)) else response
     }
 
     /** On/off settings whose previous state fits in a boolean. */
@@ -337,6 +357,24 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
         return SettingsResponse.Suggestions(intro, items)
     }
 
+    /** Reading is hard (low vision, older user): the settings that make text and the screen easier to read. */
+    private fun lowVisionSuggestions(): SettingsResponse {
+        val scale = settings.fontScale()
+        // Bold text can only switch directly with WRITE_SECURE_SETTINGS; otherwise its button shows the steps.
+        val boldLabel = if (a11y.canWrite()) "Apply" else "Guide me"
+        val items = buildList {
+            if (scale < FONT_SCALES.last()) {
+                add(Suggestion(FONT_SIZE, Actions.INCREASE, "Make text bigger", "Text is at ${(scale * 100).toInt()}% now.", "Apply"))
+            }
+            if (!a11y.isOn(BOLD_TEXT)) {
+                add(Suggestion(BOLD_TEXT, Actions.ON, "Turn on bold text", "Thicker letters are easier to read.", boldLabel))
+            }
+            add(Suggestion(DISPLAY_SIZE, Actions.INCREASE, "Make everything bigger", "Display size makes icons and buttons bigger too.", "Guide me"))
+            add(Suggestion(MAGNIFICATION, Actions.ON, "Turn on magnification", "Zoom into any part of the screen when you need to.", "Guide me"))
+        }
+        return SettingsResponse.Suggestions("These make the phone easier to read:", items)
+    }
+
     // ---- Permission / guide responses ----
 
     private fun needsWritePermission(settingId: String, action: String) = SettingsResponse.NeedsPermission(
@@ -405,7 +443,7 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
         val TIMEOUTS_MS = listOf(15_000, 30_000, 60_000, 120_000, 300_000, 600_000, 1_800_000)
 
         /** Need the "Modify system settings" grant. */
-        val WRITE_SETTINGS = setOf(BRIGHTNESS, AUTO_BRIGHTNESS, FONT_SIZE, SCREEN_TIMEOUT, AUTO_ROTATE, TOUCH_SOUNDS)
+        val WRITE_SETTINGS = setOf(BRIGHTNESS, AUTO_BRIGHTNESS, FONT_SIZE, SCREEN_TIMEOUT, AUTO_ROTATE, TOUCH_SOUNDS, TOUCH_VIBRATION)
 
         /** Open a specific app's page when given its package. */
         val APP_PAGES = setOf(APP_TIMER, APP_INFO)

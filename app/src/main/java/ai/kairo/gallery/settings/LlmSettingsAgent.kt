@@ -26,6 +26,8 @@ class LlmSettingsAgent(context: Context) : SettingsAgent {
     override suspend fun handle(query: String): SettingsResponse {
         // The checkup reads the real phone state; Gemma would answer with generic tips (seen on the iQOO, in ~6 s).
         if (keywords.kb.match(query)?.id == SettingIds.PHONE_CHECKUP) return keywords.handle(query)
+        // Same for "my grandma can't read the screen": the keyword answer knows the current text size.
+        if (QueryParser.isLowVision(query)) return keywords.handle(query)
         if (!Llm.isReady()) return keywords.handle(query)
         val decision = ask(query) ?: return keywords.handle(query)
         // Gemma sometimes lists the checkup as one tip among generic ones; the checkup itself is the grounded answer.

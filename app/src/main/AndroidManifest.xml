@@ -28,6 +28,11 @@
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <!-- Settings assistant: wallpaper from the gallery. Normal permission, granted at install. -->
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
+    <!-- Settings assistant: color inversion, grayscale, bold text... Users can't grant this; only
+         `adb shell pm grant` can (demo phones). Without it those settings show guide steps instead. -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
     <!-- Settings assistant: screen time and per-app cache sizes. Granted by the user on the Usage access screen. -->
     <uses-permission
         android:name="android.permission.PACKAGE_USAGE_STATS"

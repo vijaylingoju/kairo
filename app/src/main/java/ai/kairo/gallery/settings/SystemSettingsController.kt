@@ -60,6 +60,12 @@ class SystemSettingsController(private val context: Context) {
         Settings.System.putInt(resolver, Settings.System.SOUND_EFFECTS_ENABLED, if (on) 1 else 0)
     }
 
+    fun isHapticOn(): Boolean = Settings.System.getInt(resolver, Settings.System.HAPTIC_FEEDBACK_ENABLED, 1) == 1
+
+    fun setHaptic(on: Boolean) {
+        Settings.System.putInt(resolver, Settings.System.HAPTIC_FEEDBACK_ENABLED, if (on) 1 else 0)
+    }
+
     fun isDarkModeOn(): Boolean =
         (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
             Configuration.UI_MODE_NIGHT_YES

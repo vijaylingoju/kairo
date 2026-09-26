@@ -30,6 +30,17 @@ object SettingIds {
     const val BEDTIME_MODE = "bedtime_mode"
     const val FOCUS_MODE = "focus_mode"
 
+    // Accessibility
+    const val TOUCH_VIBRATION = "touch_vibration"
+    const val COLOR_INVERSION = "color_inversion"
+    const val GRAYSCALE = "grayscale"
+    const val HIGH_CONTRAST_TEXT = "high_contrast_text"
+    const val BOLD_TEXT = "bold_text"
+    const val EXTRA_DIM = "extra_dim"
+    const val ANIMATIONS = "animations"
+    const val DISPLAY_SIZE = "display_size"
+    const val MAGNIFICATION = "magnification"
+
     // Read-only (info tier)
     const val DEVICE_INFO = "device_info"
     const val STORAGE_INFO = "storage_info"

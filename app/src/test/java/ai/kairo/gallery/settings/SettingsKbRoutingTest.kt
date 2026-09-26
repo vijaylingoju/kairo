@@ -2,6 +2,7 @@ package ai.kairo.gallery.settings
 
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -108,6 +109,23 @@ class SettingsKbRoutingTest {
             "uninstall an app" to ("app_info" to "open"),
             "close all apps" to ("close_apps" to "open"),
             "increase screen timeout" to ("screen_timeout" to "increase"),
+            // Accessibility
+            "invert colors" to ("color_inversion" to "on"),
+            "turn off color inversion" to ("color_inversion" to "off"),
+            "make my screen black and white" to ("grayscale" to "on"),
+            "I'm color blind" to ("color_correction" to "on"),
+            "turn on high contrast text" to ("high_contrast_text" to "on"),
+            "make the font bold" to ("bold_text" to "on"),
+            "remove animations" to ("animations" to "off"),
+            "turn animations back on" to ("animations" to "on"),
+            "make it even darker" to ("extra_dim" to "on"),
+            "make icons bigger" to ("display_size" to "increase"),
+            "zoom the screen" to ("magnification" to "on"),
+            "turn on talkback" to ("talkback" to "on"),
+            "turn on captions" to ("captions" to "on"),
+            "connect my hearing aid" to ("hearing_aids" to "open"),
+            "turn off haptic feedback" to ("touch_vibration" to "off"),
+            "grey screen at night" to ("bedtime_mode" to "open"),
             // ...without stealing these
             "wifi is slow" to ("wifi" to "open"),
             "internet is slow" to ("mobile_data" to "open"),
@@ -132,6 +150,14 @@ class SettingsKbRoutingTest {
             "change wallpaper" to "",
         )
         cases.forEach { (query, photo) -> assertEquals(query, photo, QueryParser.wallpaperPhoto(query)) }
+    }
+
+    @Test
+    fun lowVisionIsAboutReadingNotSunlight() {
+        assertTrue(QueryParser.isLowVision("My grandma can't read the screen"))
+        assertTrue(QueryParser.isLowVision("my eyesight is weak"))
+        assertFalse(QueryParser.isLowVision("I can't see the screen in the sun"))
+        assertFalse(QueryParser.isLowVision("my eyes hurt at night"))
     }
 
     @Test

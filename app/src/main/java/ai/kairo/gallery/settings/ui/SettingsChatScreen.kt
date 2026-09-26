@@ -85,6 +85,7 @@ private val EXAMPLES = listOf(
     "Set a dog photo as my wallpaper",
     "My phone is slow",
     "How much screen time today?",
+    "My grandma can't read the screen",
 )
 
 @OptIn(ExperimentalMaterial3Api::class)

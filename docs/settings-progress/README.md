@@ -13,18 +13,20 @@ The assistant then changes the setting, opens the right system panel, or shows s
 | Area | Status |
 |---|---|
 | Chat UI (text + offline voice input) | ✅ Done |
-| Knowledge base of 38 entries (JSON) | ✅ Done |
+| Knowledge base of 51 entries (JSON) | ✅ Done |
 | Phone info answers: device, storage, battery, software update | ✅ Done, tested on phone (Gemma picks them in 1.6–3.5 s) |
 | Wallpaper from the gallery ("set my beach photo as wallpaper") | ✅ Done, tested on phone (home, lock, both) |
 | Slow / hot phone checkup + clean up cache, close apps, restart | ✅ Done, tested on phone (instant, no permissions) |
 | Wellbeing: screen time, top apps, unlocks, late-night use → app timer / Bedtime / Focus mode; biggest app cache in the checkup | ✅ Built, unit-tested · ⚠️ on the iQOO, HackTracker blocks the Usage access page, so the screen-time card itself is untested |
 | Keyword agent | ✅ Done, tested on phone |
 | Gemma (LLM) agent: picks setting + action (+ photo), keyword agent as fallback | ✅ Done, tested on phone |
+| Accessibility: touch vibration (direct), low-vision suggestions, guides for inversion, grayscale, color correction, contrast, bold text, Extra dim, animations, display size, magnification, TalkBack, captions, hearing aids | ✅ Done, partly tested on phone (see below) |
 | Undo for every direct change (except wallpaper: confirm first instead) | ✅ Done |
 | Problem → suggestions (eye strain) | ✅ Done |
 | Single app: gallery home → Settings screen | ✅ Done |
-| Routing unit test | ✅ Passing (78 phrases) |
+| Routing unit test | ✅ Passing (94 phrases) |
 | Screen-time maths unit test (`UsageMathTest`) | ✅ Passing |
+| Accessibility switch on/off logic (`SecureSwitchesTest`) | ✅ Passing |
 | Commit to `feat/settings-handle` | ✅ Committed |
 | Floating guide card, AccessibilityService, QS tile, onboarding | ⬜ Not started |
 
@@ -70,15 +72,17 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 | `settings/SystemSettingsController.kt` | Brightness, font scale, timeout, rotation, touch sounds |
 | `settings/DeviceController.kt` | Volumes, silent/vibrate, Do Not Disturb, flashlight |
 | `settings/PhoneInfo.kt` | Read-only answers: phone info, storage, battery, software update, slow-phone checkup (+ `InfoFormat` helpers) |
+| `settings/AccessibilityController.kt` | Accessibility switches in Settings.Secure/Global (`SecureSwitches` table); direct only with WRITE_SECURE_SETTINGS |
 | `settings/Wellbeing.kt` | Screen time from Android's usage events (`UsageMath`: one app in front at a time, home screen not counted), `hasUsageAccess()`, `appLabel()` |
 | `settings/Wallpapers.kt` | Finds photos with the gallery search, then decodes (EXIF-rotated), center-crops to the screen and sets the tapped one |
 | `settings/ui/*` | Chat screen, ViewModel, `SettingsActivity` |
 | `app/src/test/.../SettingsKbRoutingTest.kt` | Runs real phrases through the real JSON |
 
-## Supported settings (32) + phone info (6)
+## Supported settings (45) + phone info (6)
 
 | Tier | Settings | How |
 |---|---|---|
+| **Accessibility** | touch vibration (direct, `WRITE_SETTINGS`); color inversion, grayscale, high contrast text, bold text, Extra dim, animations (guide, or direct + Undo when `WRITE_SECURE_SETTINGS` is granted with adb); color correction, display size, magnification, TalkBack, captions, hearing aids (guide only) | TalkBack is never switched on for the user: it changes how touch works. "My grandma can't read the screen" → text size (Apply), bold text, display size, magnification |
 | **Info → wellbeing** (Usage access) | screen time | Today vs yesterday, unlocks, after-midnight use, top 3 apps. Suggests a timer for the top app (≥ 1 h), Bedtime mode (≥ 30 min after midnight), Focus mode (≥ 80 unlocks) |
 | **Panel** (Digital Wellbeing) | app timer, Bedtime mode, Focus mode, app info | Opens Google Digital Wellbeing's own screens. From a suggestion, the timer / app info page of that exact app |
 | **Info** (read-only) | phone info, storage, battery, software update | Card with facts + a button to the right screen. No permission needed |
@@ -129,6 +133,11 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 | "pause distracting apps" → Gemma suggests Focus mode → **Open Focus mode** → `FocusModeConfigActivity` | ✅ |
 | Checkup without Usage access → no "Biggest app cache" line, rest unchanged | ✅ |
 | Screen-time card, app timer for one app, "Clear X's cache" | ⬜ Needs Usage access (organiser passcode on this phone) or another phone |
+| "My grandma can't read the screen" → instant suggestions (text at 100%) → **Apply** → font_scale 1.0 → 1.15 → **Undo** → 1.0 | ✅ |
+| Bold text → **Guide me** → "Android only lets system apps switch bold text" + steps | ✅ |
+| "turn off haptic feedback" → `haptic_feedback_enabled` 1 → 0 → **Undo** → 1 (OriginOS keeps the write) | ✅ |
+| "invert colors" → Gemma: `color_inversion` / `on` → guide | ✅ routed (someone else was using the phone, so the card wasn't checked) |
+| Accessibility "Take me there" screens; direct switches with `WRITE_SECURE_SETTINGS` | ⬜ Not opened (HackTracker may guard Accessibility, like Usage access); permission not granted |
 | Silent / DND actually switching | ⬜ Needs DND access granted first |
 | Ring volume; location / battery saver / hotspot deep links | ⬜ Not yet |
 
@@ -144,6 +153,8 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 - Apps can't check for OS updates (no public API, and Kairo has no INTERNET). The update card shows how old the security patch is and opens the updater.
 - **Slow phone:** asked "my phone is slow", Gemma returned generic tips (clean up, close apps) in 5.9 s without looking at the phone. Now any query the keywords route to the checkup skips Gemma, and the prompt tells Gemma to pick `phone_checkup` for slow/hot phones. Gemma still sometimes answers `suggest` with the checkup as one item among generic tips, so any Gemma answer that mentions `phone_checkup` runs the checkup instead.
 - **HackTracker** (`com.reskill.hacktracker`, the organisers' app: device admin + accessibility service + its own Usage access) puts an "Enter organiser passcode" screen over the Usage access page. Participants can't grant Usage access on this phone without the organisers.
+- All the AOSP accessibility screens resolve on OriginOS 6: `COLOR_INVERSION_SETTINGS`, `ACCESSIBILITY_COLOR_SPACE_SETTINGS` (color correction), `ACCESSIBILITY_COLOR_MOTION_SETTINGS`, `TEXT_READING_SETTINGS` (display size and text), `MAGNIFICATION_SETTINGS`, `CAPTIONING_SETTINGS`, `HEARING_DEVICES_SETTINGS`, `REDUCE_BRIGHT_COLORS_SETTINGS`. TalkBack is installed.
+- **Gemma is getting slower as the list grows:** with 51 entries in the prompt, answers take 2–5 s (1.6 s with 24). Next step: skip Gemma when the keywords find an exact setting and action ("turn off haptic feedback").
 - The empty chat's example chips no longer fit on one screen (13 chips); the list now scrolls.
 - Digital Wellbeing (`com.google.android.apps.wellbeing`) is on the iQOO: `…action.APP_USAGE_DASHBOARD`, `…action.WIND_DOWN` (Bedtime mode), `…action.FOCUS_MODE`, and `android.settings.action.APP_USAGE_SETTINGS` + `EXTRA_PACKAGE_NAME` for one app's timer. The Usage access page accepts `package:ai.kairo.gallery` and opens on Kairo's own switch.
 - vivo's cleaner: `com.iqoo.secure.action.SPACE_MANAGER` → `com.vivo.imanager/…PhoneCleanActivity2`. It's also the first "Free up space" target of the storage card.

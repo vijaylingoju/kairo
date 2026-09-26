@@ -299,6 +299,161 @@
       }
     },
     {
+      "id": "touch_vibration",
+      "name": "Touch vibration",
+      "tier": "direct",
+      "synonyms": ["touch vibration", "haptic feedback", "haptics", "haptic", "vibrate on touch", "vibration on touch", "tap vibration", "vibration when i tap"],
+      "actions": ["off", "on"],
+      "guide": {
+        "intents": ["android.settings.SOUND_SETTINGS"],
+        "steps": ["Open Settings", "Tap Sound & vibration", "Turn Touch vibration on or off"]
+      }
+    },
+    {
+      "id": "color_inversion",
+      "name": "Color inversion",
+      "tier": "guide",
+      "synonyms": ["invert colors", "invert colours", "color inversion", "colour inversion", "inverted colors", "inverted colours", "negative colors", "reverse colors"],
+      "actions": ["on", "off"],
+      "note": "Android only lets system apps switch color inversion. Here's how:",
+      "guide": {
+        "intents": ["android.settings.COLOR_INVERSION_SETTINGS", "vivo.settings.ACCESSIBILITY_INVERTION_SETTINGS", "android.settings.ACCESSIBILITY_SETTINGS"],
+        "steps": ["Open Color inversion settings", "Turn Use color inversion on or off"]
+      }
+    },
+    {
+      "id": "grayscale",
+      "name": "Grayscale",
+      "tier": "guide",
+      "synonyms": ["grayscale", "greyscale", "gray scale", "grey scale", "black and white", "monochrome", "grey screen", "gray screen"],
+      "actions": ["on", "off"],
+      "note": "Android only lets system apps switch grayscale. It's one of the modes of Color correction. Here's how:",
+      "guide": {
+        "intents": ["com.android.settings.ACCESSIBILITY_COLOR_SPACE_SETTINGS", "android.settings.ACCESSIBILITY_COLOR_MOTION_SETTINGS", "android.settings.ACCESSIBILITY_SETTINGS"],
+        "steps": ["Open Color correction settings", "Turn Use color correction on", "Pick Grayscale"]
+      }
+    },
+    {
+      "id": "color_correction",
+      "name": "Color correction",
+      "tier": "guide",
+      "synonyms": ["color correction", "colour correction", "color blind", "colour blind", "colorblind", "color blindness", "colour blindness", "red green", "deuteranomaly", "protanomaly", "tritanomaly"],
+      "actions": ["on", "off"],
+      "note": "Color correction has a mode for each type of color blindness, so it's best to pick it yourself. Here's how:",
+      "guide": {
+        "intents": ["com.android.settings.ACCESSIBILITY_COLOR_SPACE_SETTINGS", "android.settings.ACCESSIBILITY_COLOR_MOTION_SETTINGS", "android.settings.ACCESSIBILITY_SETTINGS"],
+        "steps": ["Open Color correction settings", "Turn Use color correction on", "Pick the mode that looks right: Red-green, Green-red or Blue-yellow"]
+      }
+    },
+    {
+      "id": "high_contrast_text",
+      "name": "High contrast text",
+      "tier": "guide",
+      "synonyms": ["high contrast text", "high contrast", "contrast text", "text contrast", "more contrast"],
+      "actions": ["on", "off"],
+      "note": "Android only lets system apps switch high contrast text. Here's how:",
+      "guide": {
+        "intents": ["android.settings.TEXT_READING_SETTINGS", "android.settings.ACCESSIBILITY_COLOR_CONTRAST_SETTINGS", "android.settings.ACCESSIBILITY_SETTINGS"],
+        "steps": ["Open Display size and text", "Turn High contrast text on or off"]
+      }
+    },
+    {
+      "id": "bold_text",
+      "name": "Bold text",
+      "tier": "guide",
+      "synonyms": ["bold text", "bold font", "bold letters", "font bold", "text bold", "thicker text", "thicker letters"],
+      "actions": ["on", "off"],
+      "note": "Android only lets system apps switch bold text. Here's how:",
+      "guide": {
+        "intents": ["android.settings.TEXT_READING_SETTINGS", "android.settings.ACCESSIBILITY_SETTINGS"],
+        "steps": ["Open Display size and text", "Turn Bold text on or off"]
+      }
+    },
+    {
+      "id": "extra_dim",
+      "name": "Extra dim",
+      "tier": "guide",
+      "synonyms": ["extra dim", "even darker", "darker than lowest", "dimmer than lowest", "darker than minimum", "reduce bright colors", "reduce bright colours"],
+      "actions": ["on", "off"],
+      "note": "Android only lets system apps switch Extra dim. It makes the screen darker than the lowest brightness. Here's how:",
+      "guide": {
+        "intents": ["android.settings.REDUCE_BRIGHT_COLORS_SETTINGS", "android.settings.ACCESSIBILITY_SETTINGS"],
+        "steps": ["Open Extra dim settings", "Turn Use Extra dim on", "Drag the Intensity slider"]
+      }
+    },
+    {
+      "id": "animations",
+      "name": "Animations",
+      "tier": "guide",
+      "synonyms": ["animations", "animation", "remove animations", "reduce motion", "less motion", "motion sickness"],
+      "actions": ["off", "on"],
+      "note": "Android only lets system apps switch animations off. Here's how:",
+      "guide": {
+        "intents": ["android.settings.ACCESSIBILITY_COLOR_MOTION_SETTINGS", "android.settings.ACCESSIBILITY_SETTINGS"],
+        "steps": ["Open Color and motion", "Turn Remove animations on (or off to bring them back)"]
+      }
+    },
+    {
+      "id": "display_size",
+      "name": "Display size",
+      "tier": "guide",
+      "synonyms": ["display size", "screen size", "everything bigger", "everything smaller", "bigger icons", "icons bigger", "smaller icons", "icons smaller", "icon size", "buttons bigger", "bigger buttons"],
+      "actions": ["increase", "decrease"],
+      "note": "Android only lets system apps change the display size. It makes icons and buttons bigger, not just text. Here's how:",
+      "guide": {
+        "intents": ["android.settings.TEXT_READING_SETTINGS", "android.settings.DISPLAY_SETTINGS"],
+        "steps": ["Open Display size and text", "Drag the Display size slider"]
+      }
+    },
+    {
+      "id": "magnification",
+      "name": "Magnification",
+      "tier": "guide",
+      "synonyms": ["magnification", "magnifier", "magnify", "zoom in on the screen", "zoom into the screen", "zoom the screen", "screen zoom", "enlarge the screen"],
+      "actions": ["on", "off"],
+      "note": "Magnification lets you zoom into any part of the screen. Here's how to turn it on:",
+      "guide": {
+        "intents": ["android.settings.MAGNIFICATION_SETTINGS", "vivo.settings.ACCESSIBILITY_MAGNIFICATION_SETTINGS", "android.settings.ACCESSIBILITY_SETTINGS"],
+        "steps": ["Open Magnification settings", "Turn on the Magnification shortcut", "Use the shortcut, then drag two fingers to move around and pinch to zoom"]
+      }
+    },
+    {
+      "id": "talkback",
+      "name": "TalkBack",
+      "tier": "guide",
+      "synonyms": ["talkback", "talk back", "screen reader", "read the screen", "read my screen", "read aloud", "read out loud", "spoken feedback"],
+      "actions": ["on", "off"],
+      "note": "TalkBack changes how touch works (you double-tap to open things), so I won't switch it on for you. Here's how:",
+      "guide": {
+        "intents": ["android.settings.ACCESSIBILITY_SETTINGS"],
+        "steps": ["Open Accessibility settings", "Tap TalkBack", "Turn on Use TalkBack", "To turn it off later: tap the switch once, then double-tap it"]
+      }
+    },
+    {
+      "id": "captions",
+      "name": "Captions",
+      "tier": "guide",
+      "synonyms": ["captions", "caption", "subtitles", "subtitle", "live caption", "closed captions"],
+      "actions": ["on", "off"],
+      "note": "Here's how to turn on captions:",
+      "guide": {
+        "intents": ["android.settings.CAPTIONING_SETTINGS", "android.settings.ACCESSIBILITY_SETTINGS"],
+        "steps": ["Open Caption preferences", "Turn Show captions on", "Pick the text size and style"]
+      }
+    },
+    {
+      "id": "hearing_aids",
+      "name": "Hearing aids",
+      "tier": "guide",
+      "synonyms": ["hearing aid", "hearing aids", "hearing device", "hearing devices"],
+      "actions": ["open"],
+      "note": "Here's how to connect a hearing aid:",
+      "guide": {
+        "intents": ["android.settings.HEARING_DEVICES_SETTINGS", "android.settings.ACCESSIBILITY_SETTINGS"],
+        "steps": ["Open Hearing devices", "Tap Pair new device", "Pick your hearing aid"]
+      }
+    },
+    {
       "id": "device_info",
       "name": "Phone info",
       "tier": "info",
