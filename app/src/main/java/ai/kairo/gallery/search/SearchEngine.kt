@@ -15,6 +15,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import kotlin.math.ln
 
 data class Filter(
     val categories: Set<String>,
@@ -33,6 +34,9 @@ data class SearchResult(
     val answer: String?,
     val tookMs: Long,
     val topSim: Float? = null,    // best CLIP similarity, null when visual search didn't run
+    val scores: Map<Long, Float> = emptyMap(),  // final score per returned photo
+    val sims: Map<Long, Float> = emptyMap(),    // raw CLIP similarity per photo (all photos)
+    val adjusted: Map<Long, Float> = emptyMap(), // CLIP similarity minus the photo's own baseline
 )
 
 /**
@@ -45,61 +49,116 @@ object SearchEngine {
     private const val TAG = "KairoSearch"
     private val DAY_FMT = SimpleDateFormat("yyyy-MM-dd", Locale.US)
 
-    // CLIP ViT-B/16 cosine: a real match is usually ~0.26-0.35, unrelated photos ~0.12-0.20.
-    private const val MIN_SIM = 0.20f
-    private const val REL_GAP = 0.04f      // keep photos within this distance of the best match
-    private const val VISUAL_WEIGHT = 100f // (sim - MIN_SIM) * weight -> 0.30 ≈ 10 points
+    // CLIP scores are compared to each photo's OWN baseline (its mean similarity to a bank of generic
+    // prompts). Some photos - dark UI screenshots, plain cards - are "hubs" that score ~0.25 against
+    // every query; relative to their baseline they only stand out for queries that really match.
+    //
+    // Calibration (tools/eval, 2026-09-26, 18 photos, CLIP ViT-B/16): a correct photo beat the best wrong
+    // photo by only 0.003-0.022 adjusted, and a non-existent "snowy mountains" still scored 0.069 on a
+    // movie still. So CLIP alone can't decide what to include; agreement with Gemma's tags/text can.
+    private const val ADJ_STRICT = 0.08f   // CLIP-only result (no tag/text agreement) must be this strong
+    private const val ADJ_GAP = 0.03f      // ...and within this distance of the best match
+    private const val VISUAL_WEIGHT = 150f // adjusted 0.06 ≈ 9 points (a category hit is 5)
+    private val BASELINE_PROMPTS = listOf(
+        "a photo", "a screenshot of a phone app", "a document with text", "a person", "an animal",
+        "food", "a place", "an object", "a colorful image", "a dark image",
+    )
+    @Volatile private var baselineVecs: List<FloatArray>? = null
 
     private val DOC_CATEGORIES = setOf(
-        "pan_card", "aadhaar_card", "driving_license", "passport", "train_ticket", "flight_ticket",
+        "pan_card", "aadhaar_card", "driving_license", "passport", "train_ticket", "bus_ticket", "flight_ticket",
         "movie_event_ticket", "bill_invoice", "payment_receipt", "chat_screenshot", "document",
     )
+    // Broad visual categories: a hint, not a filter, when the query says more ("fast food", "man with makeup").
+    private val BROAD_CATEGORIES = setOf("food", "person", "place")
 
-    suspend fun search(ctx: Context, query: String): SearchResult = withContext(Dispatchers.IO) {
+    suspend fun search(ctx: Context, query: String, useLlm: Boolean = true): SearchResult = withContext(Dispatchers.IO) {
         val t0 = SystemClock.elapsedRealtime()
         val rules = RuleParser.parse(query)
-        val llm = if (Llm.isReady()) parseWithLlm(ctx, query) else null
+        // Fast path (~2 s saved): rules already fully understood it ("my PAN number", "movie tickets",
+        // "seat for my flight"). Gemma is only needed for free-form, misspelled or non-English requests.
+        val rulesConfident = rules.categories.isNotEmpty() && (rules.wantedField != null || rules.keywords.isEmpty())
+        val llm = if (useLlm && Llm.isReady() && !rulesConfident) parseWithLlm(ctx, query) else null
         val filter = merge(rules, llm)
 
         val db = IndexDb.get(ctx)
         val all = db.all()
-        val keywordHits: Map<String, Set<Long>> = filter.keywords.associateWith { db.ftsIds(it) }
-        val sims = visualScores(ctx, db, query, rules, filter)
-        val topSim = sims?.values?.maxOrNull()
-        val simCut = topSim?.let { maxOf(MIN_SIM, it - REL_GAP) }
+        var keywordHits: Map<String, Set<Long>> = filter.keywords.associateWith { db.ftsIds(it) }
+        // Slang/typos Gemma kept as-is ("doggo") find nothing; its English visual phrase ("a dog") can.
+        if (keywordHits.values.all { it.isEmpty() } && filter.visual != null) {
+            val fromVisual = RuleParser.tokens(filter.visual)
+                .filter { it !in RuleParser.STOPWORDS && it.length >= 3 && it !in filter.keywords }
+            keywordHits = keywordHits + fromVisual.associateWith { db.ftsIds(it) }
+        }
+        val visual = visualScores(ctx, db, query, rules, filter)
+        val sims = visual?.raw
+        val adj = visual?.adjusted
 
-        // Document/field questions trust exact text; CLIP only nudges. Otherwise CLIP leads.
+        // Document/field questions trust exact text; CLIP only reorders. Otherwise CLIP leads.
         val docQuery = filter.wantedField != null || filter.categories.any { it in DOC_CATEGORIES }
         val visualWeight = if (docQuery) VISUAL_WEIGHT * 0.3f else VISUAL_WEIGHT
-        val hasCriteria = filter.categories.isNotEmpty() || filter.keywords.isNotEmpty()
+        val hasDate = filter.dateFromMs != null || filter.dateToMs != null
+        val inDate = all.filter { img ->
+            (filter.dateFromMs == null || img.dateTaken >= filter.dateFromMs) &&
+                (filter.dateToMs == null || img.dateTaken <= filter.dateToMs)
+        }
 
-        val scored = all.mapNotNull { img ->
-            if (filter.dateFromMs != null && img.dateTaken < filter.dateFromMs) return@mapNotNull null
-            if (filter.dateToMs != null && img.dateTaken > filter.dateToMs) return@mapNotNull null
-            var text = 0f
-            if (img.category in filter.categories) text += 5
-            for ((_, ids) in keywordHits) if (img.mediaId in ids) text += 2
-            if (filter.wantedField != null && img.fields[filter.wantedField] != null) text += 1
+        // Text evidence: category hit (+5) and keyword hits weighted by rarity (IDF), so "booking" on five
+        // tickets counts far less than "odyssey" on one. Having the wanted field is only a tie-breaker.
+        val softCategory = filter.categories.isNotEmpty() && filter.categories.all { it in BROAD_CATEGORIES } &&
+            rules.keywords.isNotEmpty()
+        val idf = keywordHits.mapValues { (_, ids) -> if (ids.isEmpty()) 0f else ln((all.size + 1f) / ids.size) }
+        fun catHit(img: IndexedImage) = img.category in filter.categories && !softCategory
+        fun textScore(img: IndexedImage): Float {
+            var t = if (catHit(img)) 5f else 0f
+            for ((kw, ids) in keywordHits) if (img.mediaId in ids) t += 2f * idf.getValue(kw)
+            return t
+        }
+        val textHits = inDate.filter { textScore(it) > 0f }
 
-            val sim = sims?.get(img.mediaId)
-            val visualHit = sim != null && simCut != null && sim >= simCut
-            val visual = if (visualHit) (sim!! - MIN_SIM) * visualWeight else 0f
-
-            val keep = when {
-                sims != null -> text > 0 || visualHit
-                hasCriteria -> text > 0
-                else -> true
+        val keep: List<IndexedImage> = when {
+            // 1) Documents found by text: stay inside the category, then narrow by a rare name if one matched
+            //    ("which theatre is Irumudi in" -> the Irumudi ticket, not all four movie tickets).
+            docQuery && textHits.isNotEmpty() -> {
+                var pool = textHits.filter { catHit(it) }.ifEmpty { textHits }
+                val rare = keywordHits.values.filter { it.isNotEmpty() && it.size <= 2 }.minByOrNull { it.size }
+                if (rare != null) pool.filter { it.mediaId in rare }.takeIf { it.isNotEmpty() }?.let { pool = it }
+                pool
             }
-            if (keep) img to text + visual else null
+            // 2) Content query where Gemma's tags/description agree: those photos, plus any CLIP-only photo
+            //    that looks MORE like the query than the best tag match does.
+            textHits.isNotEmpty() -> {
+                val bar = textHits.maxOf { adj?.get(it.mediaId) ?: Float.NEGATIVE_INFINITY }
+                textHits + inDate.filter {
+                    val a = adj?.get(it.mediaId) ?: Float.NEGATIVE_INFINITY
+                    it !in textHits && a > bar && a >= ADJ_STRICT
+                }
+            }
+            // 3) Nothing in the text agrees: only a clearly strong CLIP match counts. Otherwise say "no match"
+            //    instead of showing the closest-but-wrong photos (e.g. "sunset at the beach" with no sunsets).
+            adj != null -> {
+                val top = inDate.maxOfOrNull { adj[it.mediaId] ?: Float.NEGATIVE_INFINITY } ?: Float.NEGATIVE_INFINITY
+                inDate.filter { (adj[it.mediaId] ?: Float.NEGATIVE_INFINITY).let { a -> a >= ADJ_STRICT && a >= top - ADJ_GAP } }
+            }
+            // 4) Pure date question ("photos from this week"): everything in range. Else nothing understood.
+            hasDate && filter.keywords.isEmpty() && filter.categories.isEmpty() -> inDate
+            else -> emptyList()
+        }
+
+        val scored = keep.map { img ->
+            val a = adj?.get(img.mediaId)
+            var score = textScore(img) + (if (a != null && a > 0f) a * visualWeight else 0f)
+            if (filter.wantedField != null && img.fields[filter.wantedField] != null) score += 1
+            img to score
         }
         val ranked = scored
             .sortedWith(compareByDescending<Pair<IndexedImage, Float>> { it.second }.thenByDescending { it.first.dateTaken })
             .map { it.first }
 
-        if (sims != null) {
-            val top = sims.entries.sortedByDescending { it.value }.take(5)
-                .joinToString { e -> "%.3f".format(e.value) + "(" + all.firstOrNull { it.mediaId == e.key }?.name + ")" }
-            Log.i(TAG, "\"$query\" visual cut=${"%.3f".format(simCut)} top: $top")
+        if (adj != null) {
+            val top = adj.entries.sortedByDescending { it.value }.take(5)
+                .joinToString { e -> "%.3f/%.3f".format(e.value, sims?.get(e.key) ?: 0f) + "(" + all.firstOrNull { it.mediaId == e.key }?.name + ")" }
+            Log.i(TAG, "\"$query\" visual adj/raw strict=$ADJ_STRICT top: $top")
         }
         Log.i(
             TAG,
@@ -107,36 +166,60 @@ object SearchEngine {
                 "visual=\"${filter.visual}\" doc=$docQuery -> ${ranked.take(5).joinToString { it.name }}"
         )
 
+        // Answer only from the best match: never read "seats" off a train ticket when asked about a flight.
         val answer = filter.wantedField?.let { field ->
-            ranked.firstOrNull { it.fields[field] != null }?.let { top -> formatAnswer(field, top) }
+            val top = scored.maxOfOrNull { it.second } ?: return@let null
+            scored.filter { it.second >= top - 1f }
+                .sortedByDescending { it.second }
+                .firstOrNull { it.first.fields[field] != null }
+                ?.let { formatAnswer(field, it.first) }
         }
 
-        SearchResult(query, filter, ranked, answer, SystemClock.elapsedRealtime() - t0, topSim)
+        SearchResult(
+            query, filter, ranked, answer, SystemClock.elapsedRealtime() - t0, sims?.values?.maxOrNull(),
+            scores = scored.associate { it.first.mediaId to it.second },
+            sims = sims.orEmpty(),
+            adjusted = adj.orEmpty(),
+        )
     }
 
+    private class Visual(val raw: Map<Long, Float>, val adjusted: Map<Long, Float>)
+
     /**
-     * CLIP similarity per photo, or null when there's nothing visual to look for
-     * (e.g. "bills this month" only has a date + category handled by text), or CLIP isn't available.
+     * CLIP similarity per photo (raw, and relative to the photo's own baseline), or null when there's
+     * nothing visual to look for (e.g. "bills this month"), or CLIP isn't available.
      */
     private suspend fun visualScores(
         ctx: Context, db: IndexDb, query: String, rules: Filter, filter: Filter,
-    ): Map<Long, Float>? {
+    ): Visual? {
         if (!Clip.isAvailable(ctx)) return null
-        val phrase = RuleParser.visualPhrase(query)
-        val meaningful = rules.keywords.isNotEmpty() || rules.categories.isNotEmpty() || filter.visual != null
-        if (!meaningful || phrase.isBlank()) return null
+        // CLIP only reads English: for Telugu/Hindi queries use Gemma's English rewrite only.
+        val latin = query.none { it.isLetter() && it.code > 0x24F }
+        val phrase = if (latin) RuleParser.visualPhrase(query) else ""
+        val gemmaVisual = filter.visual?.takeIf { it.isNotBlank() }
+        val meaningful = (latin && (rules.keywords.isNotEmpty() || rules.categories.isNotEmpty())) || gemmaVisual != null ||
+            (!latin && filter.keywords.isNotEmpty())
+        if (!meaningful) return null
         val embeddings = db.embeddings()
         if (embeddings.isEmpty()) return null
 
         // Prompt ensemble: raw phrase + CLIP's "a photo of" template + Gemma's visual rewrite; averaged.
-        val prompts = linkedSetOf(phrase, "a photo of $phrase")
-        filter.visual?.takeIf { it.isNotBlank() }?.let { prompts += it; prompts += "a photo of $it" }
+        val prompts = linkedSetOf<String>()
+        if (phrase.isNotBlank()) { prompts += phrase; prompts += "a photo of $phrase" }
+        gemmaVisual?.let { prompts += it; prompts += "a photo of $it" }
+        if (prompts.isEmpty()) filter.keywords.joinToString(" ").let { prompts += it; prompts += "a photo of $it" }
         return try {
             val vecs = Clip.embedTexts(ctx, prompts.take(Clip.TEXT_SLOTS))
             val q = FloatArray(Clip.DIM)
             for (v in vecs) for (i in q.indices) q[i] += v[i]
             val qn = Clip.normalize(q)
-            embeddings.mapValues { (_, v) -> Clip.dot(qn, v) }
+            val bank = baselineVecs ?: BASELINE_PROMPTS.chunked(Clip.TEXT_SLOTS)
+                .flatMap { Clip.embedTexts(ctx, it) }.also { baselineVecs = it }
+            val raw = embeddings.mapValues { (_, v) -> Clip.dot(qn, v) }
+            val adjusted = embeddings.mapValues { (id, v) ->
+                raw.getValue(id) - bank.map { b -> Clip.dot(b, v) }.average().toFloat()
+            }
+            Visual(raw, adjusted)
         } catch (t: Throwable) {
             Log.w(TAG, "Visual search unavailable", t)
             null
@@ -145,7 +228,7 @@ object SearchEngine {
 
     private suspend fun parseWithLlm(ctx: Context, query: String): Filter? = try {
         val today = DAY_FMT.format(Date())
-        val json = Llm.extractJson(Llm.generate(ctx, Content.Text(Prompts.query(today, query))))
+        val json = Llm.extractJson(Llm.generate(ctx, Content.Text(Prompts.query(today, query)), maxTokens = 160, timeoutMs = 12_000))
         json?.let { j ->
             // "other" matches every unclassified photo, so it's never a useful filter.
             val cats = j.optJSONArray("categories")?.let { a ->
@@ -186,8 +269,10 @@ object SearchEngine {
     private fun merge(rules: Filter, llm: Filter?): Filter {
         if (llm == null) return rules
         return Filter(
-            categories = rules.categories.ifEmpty { llm.categories },
-            keywords = (rules.keywords + llm.keywords).distinct(),
+            // From Gemma only document categories: "food"/"person" for "ice cream" would match every food photo.
+            categories = rules.categories.ifEmpty { llm.categories.filter { it in DOC_CATEGORIES }.toSet() },
+            // Category words are handled as categories; as keywords "food" would match every food photo.
+            keywords = (rules.keywords + llm.keywords).distinct().filter { !RuleParser.isCategoryWord(it) },
             wantedField = rules.wantedField ?: llm.wantedField,
             dateFromMs = rules.dateFromMs ?: llm.dateFromMs,
             dateToMs = rules.dateToMs ?: llm.dateToMs,
@@ -206,7 +291,12 @@ object SearchEngine {
                 "passport" -> "Passport number"
                 else -> "ID number"
             }
-            "booking_id" -> if (img.category == "train_ticket") "PNR" else "Booking ID"
+            "booking_id" -> when (img.category) {
+                "train_ticket", "bus_ticket", "flight_ticket" -> "PNR"
+                "payment_receipt" -> "Transaction ID"
+                "bill_invoice" -> "Bill no."
+                else -> "Booking ID"
+            }
             "seats" -> "Seats"
             "amount" -> "Amount"
             "venue" -> "Venue"
@@ -238,14 +328,16 @@ object RuleParser {
         "passport" to setOf("passport"),
         "train" to setOf("train_ticket"), "irctc" to setOf("train_ticket"), "pnr" to setOf("train_ticket"),
         "railway" to setOf("train_ticket"),
+        "bus" to setOf("bus_ticket"), "redbus" to setOf("bus_ticket"), "abhibus" to setOf("bus_ticket"),
+        "apsrtc" to setOf("bus_ticket"), "tsrtc" to setOf("bus_ticket"), "intrcity" to setOf("bus_ticket"),
         "flight" to setOf("flight_ticket"), "boarding" to setOf("flight_ticket"), "airline" to setOf("flight_ticket"),
         "movie" to setOf("movie_event_ticket"), "movies" to setOf("movie_event_ticket"),
         "film" to setOf("movie_event_ticket"), "cinema" to setOf("movie_event_ticket"),
         "bookmyshow" to setOf("movie_event_ticket"), "event" to setOf("movie_event_ticket"),
         "concert" to setOf("movie_event_ticket"), "theatre" to setOf("movie_event_ticket"),
         "theater" to setOf("movie_event_ticket"),
-        "ticket" to setOf("train_ticket", "flight_ticket", "movie_event_ticket"),
-        "tickets" to setOf("train_ticket", "flight_ticket", "movie_event_ticket"),
+        "ticket" to setOf("train_ticket", "bus_ticket", "flight_ticket", "movie_event_ticket"),
+        "tickets" to setOf("train_ticket", "bus_ticket", "flight_ticket", "movie_event_ticket"),
         "bill" to setOf("bill_invoice"), "bills" to setOf("bill_invoice"), "invoice" to setOf("bill_invoice"),
         "electricity" to setOf("bill_invoice"),
         "upi" to setOf("payment_receipt"), "payment" to setOf("payment_receipt"),
@@ -273,6 +365,8 @@ object RuleParser {
             .replace(LEADING_ASK, "")
             .replace(TRAILING_NOUN, "")
             .trim(' ', '?', '.', '!')
+
+    fun isCategoryWord(word: String): Boolean = word in CATEGORY_WORDS
 
     fun tokens(s: String): List<String> =
         s.lowercase().split(Regex("[^a-z0-9]+")).filter { it.isNotBlank() }

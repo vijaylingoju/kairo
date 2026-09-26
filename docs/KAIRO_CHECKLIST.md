@@ -1,7 +1,7 @@
 # Kairo AI: Build Checklist
 
 iQOO Hackathon 2026 · Productivity track · Everything runs on the phone, with no cloud.
-Last updated: 2026-09-26 · Branch: `feature/semantic-search` · Test phone: OnePlus 13R (Snapdragon 8 Gen 3)
+Last updated: 2026-09-26 · Repo: `vijaylingoju/kairo` (main) · Test phone: **iQOO 15** (Snapdragon 8 Elite Gen 5 / SM8850, 16 GB RAM, Android 16). Earlier: OnePlus 13R (Snapdragon 8 Gen 3). Decisions: see [DECISIONS.md](DECISIONS.md)
 
 Legend: ✅ done · 🟡 partly done / needs tuning · ⬜ not started · ⭐ needed for the demo
 
@@ -14,7 +14,7 @@ Legend: ✅ done · 🟡 partly done / needs tuning · ⬜ not started · ⭐ ne
 | Find new photos | Android MediaStore + WorkManager (starts when the gallery changes) | CPU | instant | – |
 | Read image text | **Google ML Kit Text Recognition** (Latin, bundled offline model) | **CPU** | not measured yet | `images.ocr_text` |
 | Visual fingerprint | **OpenAI CLIP ViT-B/16** (Qualcomm AI Hub TFLite, float, 600 MB) on **LiteRT 2.2** | **GPU + CPU** (4 threads) | ~0.4–0.7 s / photo | `embeddings` table (512 floats per photo) |
-| Understand the photo | **Gemma 4 E2B** (`.litertlm`, 2.6 GB) on **LiteRT-LM 0.17** | **GPU** (falls back to CPU) | ~3–4 s / photo (first one ~8 s) | `images.category / description / tags / fields` |
+| Understand the photo | **Gemma 4 E4B** (`.litertlm`, 3.66 GB) on **LiteRT-LM 0.17**. Was E2B (2.6 GB) on the OnePlus 13R | **GPU** (falls back to CPU) | E2B: ~3–4 s / photo; E4B on iQOO 15: to be measured | `images.category / description / tags / fields` |
 | Check the numbers | Regex + checks against the OCR text (`FieldExtractor`) | CPU | instant | `images.fields_json` |
 | Split question into words | Kotlin port of CLIP's tokenizer | CPU | instant | vocab file in `assets/` |
 | Understand the question | Rules first, then Gemma turns the question into a filter plus a visual phrase | CPU + GPU | ~1–3 s | – |
@@ -52,12 +52,13 @@ Question → rules (instant) + Gemma filter (categories, keywords, wanted field,
 ## 2. Setup and environment
 
 - [x] Android project builds (AGP 9.4, Kotlin 2.4, Compose, minSdk 31)
-- [x] Git repo + GitHub remote (`vijaylingoju/KairoAI`)
-- [x] Phone connected over USB debugging
-- [x] Gemma 4 E2B copied from Edge Gallery into the app's folder
-- [x] CLIP model pushed to `/sdcard/Android/data/ai.kairo.gallery/files/clip.tflite`
-- [x] `Pictures/Kairo` test folder (14 photos: food, tickets, Aadhaar, puppy, flowers, person)
-- [ ] ⬜ Open the PR for `feature/semantic-search` → `main`
+- [x] Git repo + GitHub remote (`vijaylingoju/KairoAI`, branch `feature/semantic-search`) → moved to `vijaylingoju/kairo` (main)
+- [x] OnePlus 13R: phone connected, Gemma 4 E2B copied from Edge Gallery, CLIP pushed, 14 test photos, semantic search tested
+- [x] **iQOO 15**: phone connected, app installed (4/4 tests pass), CLIP pushed, `Pictures/Kairo` created
+- [ ] ⏳ **iQOO 15: Gemma 4 E4B** downloading to `%USERPROFILE%\kairo-models` (hackathon Wi-Fi ~50–90 KB/s, so use USB tethering or a hotspot)
+- [ ] ⬜ **iQOO 15: add 20–40 test photos** to `Pictures/Kairo` (tickets, IDs, bills, animals, sunsets, food, people)
+- [ ] ⬜ iQOO 15: re-run the test queries; compare E2B vs E4B and CLIP speed
+- [x] App auto-picks the best Gemma in its folder (E4B > E2B) and shows the model name
 - [ ] ⬜ README: how to set up the models (the 2 `adb` commands), since they aren't in the repo
 - [ ] ⬜ Add `adb` to PATH on the laptop (it's only in the SDK folder right now)
 

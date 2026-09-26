@@ -1,0 +1,42 @@
+id	group	query	relevant	answer
+V01	visual	golden retriever	puppy
+V02	visual	a cute dog	puppy
+V03	visual	ice cream	icecream
+V04	visual	french fries	mcd
+V05	visual	mcdonalds	mcd
+V06	visual	food photos	bajji,plate,snap,icecream,mcd
+V07	visual	man with makeup	person
+V08	visual	snacks on a plate	bajji,plate,snap
+V09	visual	someone holding an ice cream cone	icecream
+N01	negative	sunset at the beach
+N02	negative	a cat
+N03	negative	red car
+N04	negative	wedding photos
+N05	negative	snowy mountains
+D01	document	my PAN card	pan
+D02	document	aadhaar card	aadhaar
+D03	document	movie tickets	irumudi,dc,odyssey,maa
+D04	document	bus ticket	bus
+D05	document	train ticket	train
+D06	document	boarding pass	flight
+D07	document	restaurant bill	bill
+D08	document	UPI payment receipt	upi
+A01	answer	what's my PAN number	pan	ABCPT1234K
+A02	answer	what's my PNR	train	4521367890
+A03	answer	seat number for my flight	flight	14C
+A04	answer	how much was the biryani bill	bill	1245.50
+A05	answer	how much did I pay Ravi	upi	350
+A06	answer	booking id for the Odyssey	odyssey	WPRQ24R
+A07	answer	which theatre is Irumudi in	irumudi	Muralikrishna
+A08	answer	when is my flight	flight	18 Oct
+A09	answer	Maa Inti Bangaaram seats	maa	L6
+S01	typo	icecream	icecream
+S02	typo	golden retreiver	puppy
+S03	typo	aadhar	aadhaar
+S04	synonym	movie tix	irumudi,dc,odyssey,maa
+S05	synonym	doggo	puppy
+S06	synonym	fast food	mcd
+T01	date	movie tickets from last month	irumudi,dc
+T02	date	tickets this month	train,flight
+M01	language	సినిమా టికెట్లు	irumudi,dc,odyssey,maa
+M02	language	कुत्ता	puppy

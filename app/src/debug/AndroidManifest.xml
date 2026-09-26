@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only: adb-driven evaluation hooks (see debug/EvalReceiver.kt). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <receiver
+            android:name=".debug.EvalReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="ai.kairo.gallery.EVAL_SEARCH" />
+                <action android:name="ai.kairo.gallery.EVAL_STATUS" />
+                <action android:name="ai.kairo.gallery.EVAL_CLEAR" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

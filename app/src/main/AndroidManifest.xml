@@ -10,6 +10,11 @@
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
+    <!-- Privacy guarantee: Kairo never touches the network. ML Kit pulls in Google's datatransport
+         (usage-log uploads), which merges INTERNET into the manifest; removing it here makes
+         "zero network calls" enforced by the OS, not just by our code. -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+
     <!-- Background indexing notification -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
