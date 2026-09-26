@@ -15,6 +15,20 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
+    <!-- Settings assistant: brightness, font size... Granted by the user on a system screen. -->
+    <uses-permission
+        android:name="android.permission.WRITE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+    <!-- Settings assistant: silent mode + Do Not Disturb. Granted by the user on a system screen. -->
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+
+    <!-- Lets RecognizerIntent resolve on Android 11+ (package visibility). -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+
     <application
         android:name=".KairoApp"
         android:label="Kairo Gallery"
@@ -28,6 +42,19 @@
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Settings assistant: separate launcher icon until it's wired into the bubble / main screen. -->
+        <activity
+            android:name=".settings.ui.SettingsActivity"
+            android:exported="true"
+            android:label="Kairo Settings"
+            android:taskAffinity="ai.kairo.gallery.settings"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
