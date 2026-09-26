@@ -72,6 +72,12 @@ Open it in Android Studio: **File → Open → select the `kairo` folder**. Wait
 
 ## 4. Build and install the app
 
+**First, once: fetch the two Snapdragon NPU libraries** (not stored in git; ~6 MB downloaded from Qualcomm's public QAIRT SDK, only the two files are read out of the 2.2 GB zip):
+```bash
+powershell -ExecutionPolicy Bypass -File tools\fetch_qnn_libs.ps1
+```
+This puts `libQnnIr.so` and `libQnnSaver.so` in `app/src/main/jniLibs/arm64-v8a/`. Skip it and the app still works, with CLIP on the GPU instead of the NPU (about 6x slower visual indexing).
+
 In Android Studio, select your phone in the device dropdown and press **Run ▶**. The app installs and opens.
 It will say **"Model missing"**. That's expected until step 6.
 
@@ -135,14 +141,14 @@ The script:
 2. checks the phone (model, RAM, Android version) and warns if E4B is too heavy for its RAM
 3. checks the app is installed (add `-Install` to build and install it for you)
 4. checks the model file sizes (add `-VerifyHash` to also check SHA-256, about 30 s)
-5. extracts CLIP from the zip
+5. extracts CLIP from the zip and prepares it for the NPU (`tools/patch_clip_npu.ps1`, a few seconds)
 6. checks free space on the phone
 7. pushes both files (skipping any already there)
 8. restarts the app and waits until both models report **ready**
 
-Expected ending:
+Expected ending (the very first NPU load compiles CLIP for the NPU, ~20 s once, then ~0.4 s):
 ```
-    KairoClip: CLIP ready on GPU+CPU (loaded in ~1000 ms)
+    KairoClip: CLIP (text) ready on GPU+CPU (loaded in ~700 ms)
     KairoLlm: gemma-4-E4B-it ready on GPU (loaded in ~5000-9000 ms)
     OK  Gemma loaded
     OK  CLIP loaded
@@ -155,10 +161,13 @@ Optional extras:
 <details>
 <summary><b>Manual alternative (without the script)</b></summary>
 
-Use **PowerShell**, not Git Bash (Git Bash rewrites `/sdcard/...` paths). Unzip CLIP first (right-click → Extract All).
+Use **PowerShell**, not Git Bash (Git Bash rewrites `/sdcard/...` paths). Unzip CLIP first (right-click → Extract All), then prepare it for the NPU (the unpatched file still works, on the GPU only):
 
 ```bash
-& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" push "C:\kairo-models\openai_clip-tflite-float\openai_clip.tflite" /sdcard/Android/data/ai.kairo.gallery/files/clip.tflite
+powershell -ExecutionPolicy Bypass -File tools\patch_clip_npu.ps1 -In "C:\kairo-models\openai_clip-tflite-float\openai_clip.tflite" -Out "C:\kairo-models\clip_npu.tflite"
+```
+```bash
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" push "C:\kairo-models\clip_npu.tflite" /sdcard/Android/data/ai.kairo.gallery/files/clip.tflite
 ```
 ```bash
 & "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" push "C:\kairo-models\gemma-4-E4B-it.litertlm" /sdcard/Android/data/ai.kairo.gallery/files/gemma-4-E4B-it.litertlm
@@ -180,7 +189,7 @@ Then force-stop and reopen the app.
 
 1. Open **Kairo Gallery**. The top status lines should read:
    - `gemma-4-E4B-it ready on GPU (loaded in … ms)`
-   - `CLIP ready on GPU+CPU (loaded in … ms)`
+   - `CLIP ready: images on NPU, text on GPU+CPU` (it says `–` for a part until it's first used)
 2. Tap **Grant photo access** → choose **Allow all**. Don't pick "Select photos", or new photos won't be seen.
 3. Add photos to the folder **`Pictures/Kairo`** (the demo only indexes this folder):
    - Files app → move/copy photos into Internal storage → Pictures → Kairo, or
@@ -247,6 +256,7 @@ Still stuck? Send the output of:
 | Stage | Runs on |
 |---|---|
 | OCR (ML Kit) | CPU |
-| CLIP visual fingerprint | GPU + CPU |
+| CLIP visual fingerprint of each photo (indexing) | **NPU** (Hexagon, ~14 ms/photo); falls back to GPU + CPU |
+| CLIP fingerprint of a search query | GPU + CPU (the text tower is wrong in the NPU's fp16, see `embed/Clip.kt`) |
 | Gemma 4 (reading photos, understanding questions) | GPU (falls back to CPU) |
 | Search (SQLite FTS + CLIP similarity) | CPU |

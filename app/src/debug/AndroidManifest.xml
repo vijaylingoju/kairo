@@ -11,6 +11,7 @@
                 <action android:name="ai.kairo.gallery.EVAL_STATUS" />
                 <action android:name="ai.kairo.gallery.EVAL_CLEAR" />
                 <action android:name="ai.kairo.gallery.EVAL_CONFIG" />
+                <action android:name="ai.kairo.gallery.EVAL_CLIP_BENCH" />
             </intent-filter>
         </receiver>
     </application>

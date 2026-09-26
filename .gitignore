@@ -10,3 +10,7 @@ local.properties
 tools/eval/results/
 tools/eval/out/
 *.stackdump
+
+# Qualcomm QAIRT runtime libs (not redistributed here): fetched by tools/fetch_qnn_libs.ps1
+app/src/main/jniLibs/arm64-v8a/libQnnIr.so
+app/src/main/jniLibs/arm64-v8a/libQnnSaver.so
