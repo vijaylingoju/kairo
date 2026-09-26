@@ -15,6 +15,7 @@ import ai.kairo.gallery.data.IndexedImage
 import ai.kairo.gallery.data.Prefs
 import ai.kairo.gallery.embed.Clip
 import ai.kairo.gallery.llm.Llm
+import ai.kairo.gallery.llm.LlmTuning
 import ai.kairo.gallery.llm.Prompts
 import com.google.ai.edge.litertlm.Content
 import kotlinx.coroutines.CancellationException
@@ -39,6 +40,7 @@ import kotlin.math.min
 object Indexer {
     private const val TAG = "KairoIndexer"
     private const val STATUS_BAR_FRACTION = 0.04f
+    private const val DOC_TEXT_MIN = 80  // letters+digits of OCR text above which a photo is treated as a document
 
     data class Status(
         val running: Boolean = false,
@@ -169,9 +171,18 @@ object Indexer {
 
             // 4) Gemma: smaller JPEG + OCR text.
             val jpeg = toJpeg(scaleDown(big, 1024))
-            val prompt = Prompts.index(ocr.take(1500))
+            // Photos with (almost) no text get the short photo prompt; measured on the test gallery, real photos
+            // had 0-56 OCR characters of noise and documents 150+.
+            val isDocument = ocr.count { it.isLetterOrDigit() } >= DOC_TEXT_MIN || FieldExtractor.guessCategory(ocr) != "other"
+            val kind = if (isDocument) "doc" else "photo"
+            val prompt = when {
+                !LlmTuning.compactIndexPrompts -> Prompts.index(ocr.take(1500))
+                isDocument -> Prompts.indexDocument(ocr.take(1500))
+                else -> Prompts.indexPhoto(ocr)
+            }
             var json: JSONObject? = null
             var llmError: String? = null
+            val tGemma = SystemClock.elapsedRealtime()
             try {
                 json = Llm.extractJson(
                     Llm.generate(ctx, Content.ImageBytes(jpeg), Content.Text(prompt), maxTokens = 400, timeoutMs = 45_000)
@@ -179,9 +190,19 @@ object Indexer {
                     Llm.generate(ctx, Content.ImageBytes(jpeg), Content.Text(prompt), maxTokens = 400, timeoutMs = 45_000)
                 )
                 if (json == null) llmError = "Model returned invalid JSON"
+            } catch (c: CancellationException) {
+                throw c
             } catch (t: Throwable) {
                 Log.w(TAG, "LLM failed for ${item.name}", t)
                 llmError = t.message ?: t.javaClass.simpleName
+            }
+            Llm.lastBench.let { b ->
+                Log.i(
+                    TAG,
+                    "gemma ${item.name} kind=$kind ms=${SystemClock.elapsedRealtime() - tGemma} " +
+                        "in=${b?.lastPrefillTokenCount} out=${b?.lastDecodeTokenCount} " +
+                        "outRate=${"%.1f".format(b?.lastDecodeTokensPerSecond ?: 0.0)} [$LlmTuning]"
+                )
             }
 
             // 5) Checks: grounding + regex + rules.

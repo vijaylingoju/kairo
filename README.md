@@ -44,7 +44,9 @@ Evaluation on an iQOO 15 (41 scenarios): **39/41 pass, 98% precision**. See [Rep
 | `llm/Llm.kt`, `llm/Prompts.kt` | Gemma loader (auto-picks E4B > E2B), bounded generation, prompts |
 | `data/IndexDb.kt` | SQLite + FTS4 + CLIP embeddings |
 | `search/SearchEngine.kt` | Question → filter → evidence → ranked results + answer |
-| `ui/` | Compose screen + ViewModel |
+| `ui/gallery/` | **User/demo UI**: OriginOS-style gallery (day-grouped photos, smart albums), smart search with AI animations and answer cards, full-screen viewer |
+| `ui/MainActivity.kt` | Routes between the gallery (default) and the developer screen (🔧 icon) |
+| `ui/MainViewModel.kt` | Shared state: photos, indexing status, search results, recent searches |
 | `app/src/debug/…/EvalReceiver.kt` | Debug-only adb hooks for the evaluation harness |
 | `tools/setup_models.ps1` | Checks the phone and pushes the models |
 | `tools/download_parallel.ps1` | Parallel downloader for throttled networks |

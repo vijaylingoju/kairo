@@ -33,7 +33,7 @@ The assistant then changes the setting, opens the right system panel, or shows s
 
 ## How to open it
 
-Launch **Kairo Gallery** and tap the sliders icon (top-right) to open the **Settings Assistant**. The ← arrow returns to the gallery.
+Launch **Kairo Gallery**, tap the wrench (**Developer view**, top-right of the gallery), then the gear (**Settings Assistant**). The ← arrow goes back.
 
 ```bash
 adb shell am start -n ai.kairo.gallery/.ui.MainActivity

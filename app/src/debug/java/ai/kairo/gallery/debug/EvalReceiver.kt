@@ -8,6 +8,7 @@ import android.util.Log
 import ai.kairo.gallery.data.IndexDb
 import ai.kairo.gallery.embed.Clip
 import ai.kairo.gallery.llm.Llm
+import ai.kairo.gallery.llm.LlmTuning
 import ai.kairo.gallery.index.IndexScheduler
 import ai.kairo.gallery.index.Indexer
 import ai.kairo.gallery.search.SearchEngine
@@ -48,6 +49,18 @@ class EvalReceiver : BroadcastReceiver() {
                         emit(ctx, id, runCatching { search(ctx, id, q, useLlm) })
                     }
                     ACTION_STATUS -> emit(ctx, id, runCatching { status(ctx, id) })
+                    // A/B switches for Gemma (see LlmTuning); the engine reloads with the new settings.
+                    ACTION_CONFIG -> emit(ctx, id, runCatching {
+                        if (intent.hasExtra("spec")) LlmTuning.speculativeDecoding = intent.getBooleanExtra("spec", false)
+                        if (intent.hasExtra("greedy")) LlmTuning.greedy = intent.getBooleanExtra("greedy", false)
+                        if (intent.hasExtra("compact")) LlmTuning.compactIndexPrompts = intent.getBooleanExtra("compact", false)
+                        if (intent.hasExtra("vtb")) LlmTuning.visualTokenBudget = intent.getIntExtra("vtb", 0).takeIf { it > 0 }
+                        if (intent.getBooleanExtra("reset", false)) { LlmTuning.clearOverrides(ctx) }  // back to the built-in defaults
+                        else LlmTuning.saveOverrides(ctx)
+                        // No in-process reload: closing and re-creating the engine right after a load hung LiteRT-LM
+                        // in testing. The harness force-stops the app instead; the next process loads these settings.
+                        JSONObject().put("id", id).put("tuning", LlmTuning.toString()).put("saved", true)
+                    })
                     // Same steps as the "Clear all data & start fresh" button.
                     ACTION_CLEAR -> emit(ctx, id, runCatching {
                         IndexScheduler.cancelAll(ctx)
@@ -107,6 +120,7 @@ class EvalReceiver : BroadcastReceiver() {
             .put("indexed", db.count())
             .put("embedded", db.embeddingIds().size)
             .put("llmReady", Llm.isReady())
+            .put("tuning", LlmTuning.toString())
             .put("llm", Llm.state.value)
             .put("clip", Clip.state.value)
     }
@@ -128,6 +142,7 @@ class EvalReceiver : BroadcastReceiver() {
         const val ACTION_SEARCH = "ai.kairo.gallery.EVAL_SEARCH"
         const val ACTION_STATUS = "ai.kairo.gallery.EVAL_STATUS"
         const val ACTION_CLEAR = "ai.kairo.gallery.EVAL_CLEAR"
+        const val ACTION_CONFIG = "ai.kairo.gallery.EVAL_CONFIG"
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 }

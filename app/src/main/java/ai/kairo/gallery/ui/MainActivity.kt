@@ -10,8 +10,11 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -32,7 +36,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -69,12 +74,17 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import ai.kairo.gallery.data.IndexedImage
 import ai.kairo.gallery.index.Indexer
 import ai.kairo.gallery.settings.ui.SettingsActivity
+import ai.kairo.gallery.ui.gallery.GalleryApp
+import ai.kairo.gallery.ui.gallery.KairoTheme
 import coil.compose.AsyncImage
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         setContent {
+            // The user-facing gallery is the default; the wrench icon opens this developer screen.
+            var devMode by rememberSaveable { mutableStateOf(false) }
             MaterialTheme {
                 val vm: MainViewModel = viewModel()
                 var hasPerm by remember {
@@ -90,19 +100,25 @@ class MainActivity : ComponentActivity() {
                 }
                 // Index on app open and right after permission is granted.
                 LaunchedEffect(hasPerm) { if (hasPerm) vm.indexNow(force = false) }
-                KairoScreen(
-                    vm = vm,
-                    hasPerm = hasPerm,
-                    onGrant = {
-                        launcher.launch(
-                            arrayOf(
-                                Manifest.permission.READ_MEDIA_IMAGES,
-                                Manifest.permission.ACCESS_MEDIA_LOCATION,
-                                Manifest.permission.POST_NOTIFICATIONS,
-                            )
+                val onGrant = {
+                    launcher.launch(
+                        arrayOf(
+                            Manifest.permission.READ_MEDIA_IMAGES,
+                            Manifest.permission.ACCESS_MEDIA_LOCATION,
+                            Manifest.permission.POST_NOTIFICATIONS,
                         )
-                    },
-                )
+                    )
+                }
+                if (devMode) {
+                    BackHandler { devMode = false }
+                    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding()) {
+                        KairoScreen(vm = vm, hasPerm = hasPerm, onGrant = onGrant, onClose = { devMode = false })
+                    }
+                } else {
+                    KairoTheme {
+                        GalleryApp(vm = vm, hasPerm = hasPerm, onGrant = onGrant, onOpenDev = { devMode = true })
+                    }
+                }
             }
         }
     }
@@ -110,7 +126,7 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun KairoScreen(vm: MainViewModel, hasPerm: Boolean, onGrant: () -> Unit) {
+fun KairoScreen(vm: MainViewModel, hasPerm: Boolean, onGrant: () -> Unit, onClose: () -> Unit = {}) {
     val status by vm.indexStatus.collectAsState()
     val model by vm.modelState.collectAsState()
     val clip by vm.clipState.collectAsState()
@@ -127,14 +143,20 @@ fun KairoScreen(vm: MainViewModel, hasPerm: Boolean, onGrant: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Kairo Gallery") },
+                title = { Text("Kairo · Developer") },
+                navigationIcon = {
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to gallery")
+                    }
+                },
                 actions = {
                     IconButton(onClick = { context.startActivity(Intent(context, SettingsActivity::class.java)) }) {
-                        Icon(Icons.Default.Tune, contentDescription = "Settings Assistant")
+                        Icon(Icons.Filled.Settings, contentDescription = "Settings Assistant")
                     }
                 },
             )
         },
+        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0),
     ) { pad ->
         Column(
             Modifier

@@ -33,8 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -44,6 +43,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -69,6 +69,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ai.kairo.gallery.settings.IntentSpec
 import ai.kairo.gallery.settings.SettingsResponse
+import ai.kairo.gallery.ui.gallery.MicIcon
 import coil.compose.AsyncImage
 
 private val EXAMPLES = listOf(
@@ -128,7 +129,7 @@ fun SettingsChatScreen(vm: SettingsChatViewModel = viewModel(), onBack: (() -> U
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to gallery")
                         }
                     } else {
-                        Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.padding(start = 16.dp))
+                        Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.padding(start = 16.dp))
                     }
                 },
             )
@@ -361,7 +362,8 @@ private fun InputBar(enabled: Boolean, onSend: (String) -> Unit, onMic: () -> Un
         )
         if (text.isBlank()) {
             IconButton(onClick = onMic, enabled = enabled) {
-                Icon(Icons.Default.Mic, contentDescription = "Speak")
+                // material-icons-core has no mic; this is the gallery's hand-drawn one (LocalContentColor dims it when disabled).
+                MicIcon(tint = LocalContentColor.current, size = 24.dp)
             }
         } else {
             IconButton(
