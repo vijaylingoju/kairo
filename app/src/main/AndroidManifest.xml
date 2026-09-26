@@ -49,18 +49,13 @@
             </intent-filter>
         </activity>
 
-        <!-- Settings assistant: separate launcher icon until it's wired into the bubble / main screen. -->
+        <!-- Settings assistant: opened from the gallery's top bar (no launcher icon of its own). -->
         <activity
             android:name=".settings.ui.SettingsActivity"
-            android:exported="true"
-            android:label="Kairo Settings"
-            android:taskAffinity="ai.kairo.gallery.settings"
-            android:windowSoftInputMode="adjustResize">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:exported="false"
+            android:label="Settings Assistant"
+            android:parentActivityName=".ui.MainActivity"
+            android:windowSoftInputMode="adjustResize" />
 
         <!-- WorkManager foreground service needs a declared type on Android 14+ -->
         <service

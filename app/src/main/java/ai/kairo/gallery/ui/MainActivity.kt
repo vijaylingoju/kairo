@@ -3,6 +3,7 @@ package ai.kairo.gallery.ui
 import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
@@ -30,11 +31,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -63,6 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ai.kairo.gallery.data.IndexedImage
 import ai.kairo.gallery.index.Indexer
+import ai.kairo.gallery.settings.ui.SettingsActivity
 import coil.compose.AsyncImage
 
 class MainActivity : ComponentActivity() {
@@ -116,7 +122,19 @@ fun KairoScreen(vm: MainViewModel, hasPerm: Boolean, onGrant: () -> Unit) {
     var query by rememberSaveable { mutableStateOf("") }
     var selected by remember { mutableStateOf<IndexedImage?>(null) }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Kairo Gallery") }) }) { pad ->
+    val context = LocalContext.current
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Kairo Gallery") },
+                actions = {
+                    IconButton(onClick = { context.startActivity(Intent(context, SettingsActivity::class.java)) }) {
+                        Icon(Icons.Default.Tune, contentDescription = "Settings Assistant")
+                    }
+                },
+            )
+        },
+    ) { pad ->
         Column(
             Modifier
                 .padding(pad)

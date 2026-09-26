@@ -11,8 +11,8 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.ui.platform.LocalContext
 
 /**
- * Standalone entry for the Settings Assistant while the modules are built in parallel.
- * The bubble / main screen can later call [SettingsChatScreen] or the SettingsAgent directly.
+ * Settings Assistant screen, opened from the gallery's top bar.
+ * The bubble can later call [SettingsChatScreen] or the SettingsAgent directly.
  */
 class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -22,7 +22,7 @@ class SettingsActivity : ComponentActivity() {
             val context = LocalContext.current
             val scheme = if (isSystemInDarkTheme()) dynamicDarkColorScheme(context)
             else dynamicLightColorScheme(context)
-            MaterialTheme(colorScheme = scheme) { SettingsChatScreen() }
+            MaterialTheme(colorScheme = scheme) { SettingsChatScreen(onBack = ::finish) }
         }
     }
 }

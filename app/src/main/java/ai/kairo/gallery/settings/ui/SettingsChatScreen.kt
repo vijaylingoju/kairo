@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Mic
@@ -76,7 +77,7 @@ private val EXAMPLES = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsChatScreen(vm: SettingsChatViewModel = viewModel()) {
+fun SettingsChatScreen(vm: SettingsChatViewModel = viewModel(), onBack: (() -> Unit)? = null) {
     val context = LocalContext.current
     val messages by vm.messages.collectAsState()
     val busy by vm.busy.collectAsState()
@@ -109,7 +110,13 @@ fun SettingsChatScreen(vm: SettingsChatViewModel = viewModel()) {
             TopAppBar(
                 title = { Text("Settings Assistant") },
                 navigationIcon = {
-                    Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.padding(start = 16.dp))
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to gallery")
+                        }
+                    } else {
+                        Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.padding(start = 16.dp))
+                    }
                 },
             )
         },
