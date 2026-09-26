@@ -2,7 +2,7 @@
   "version": 1,
   "_notes": [
     "Hand-curated knowledge base for the Settings Assistant. The agent (keyword or LLM) may only pick an id + action from here.",
-    "tier: direct = Kotlin changes it, panel = system panel pops up over the app, guide = steps + deep link, info = read-only facts about the phone (the button opens guide.intents).",
+    "tier: direct = Kotlin changes it, panel = a system panel (or the phone's own screen, e.g. vivo's cleaner) opens right away, guide = steps + deep link, info = read-only facts about the phone (the button opens guide.intents).",
     "actions: the first one is the default when the query has no direction ('flashlight' -> on).",
     "guide.intents: tried in order until one resolves. All were checked with `pm resolve-activity` on the iQOO (OriginOS 6).",
     "guide.steps: OriginOS menu labels are NOT verified yet."
@@ -218,7 +218,7 @@
       "id": "eye_protection",
       "name": "Eye protection",
       "tier": "guide",
-      "synonyms": ["eye protection", "eye comfort", "eye care", "night light", "night display", "blue light", "warm screen", "reading mode"],
+      "synonyms": ["eye protection", "eye comfort", "eye care", "night light", "night display", "blue light", "warm screen", "screen warm", "screen warmer", "warmer colors", "warm colors", "reading mode"],
       "actions": ["on", "off"],
       "note": "I can't turn on Eye Protection directly yet. Here's how:",
       "guide": {
@@ -313,11 +313,59 @@
       "id": "storage_info",
       "name": "Storage",
       "tier": "info",
-      "synonyms": ["storage", "space", "free space", "storage space", "storage full", "phone storage", "internal storage", "memory full", "memory is full", "out of space", "disk space", "free up space", "clean up", "cleanup", "clean my phone", "junk files", "cache", "clear cache"],
+      "synonyms": ["storage", "space", "free space", "storage space", "storage full", "phone storage", "internal storage", "memory full", "memory is full", "out of space", "disk space"],
       "actions": ["show"],
+      "guide": {
+        "intents": ["com.iqoo.secure.action.SPACE_MANAGER", "android.settings.INTERNAL_STORAGE_SETTINGS", "android.os.storage.action.MANAGE_STORAGE"],
+        "steps": ["Open Settings", "Tap Storage", "Tap Clean up or Free up space"]
+      }
+    },
+    {
+      "id": "clean_up",
+      "name": "Cleanup",
+      "tier": "panel",
+      "panel": "com.iqoo.secure.action.SPACE_MANAGER",
+      "synonyms": ["clear cache", "clean cache", "delete cache", "cache", "junk", "junk files", "clean up", "cleanup", "clean my phone", "free up space", "phone cleaner"],
+      "actions": ["open"],
+      "note": "Android doesn't let apps clear other apps' cache, but your phone's own cleaner can. Opening it…",
       "guide": {
         "intents": ["android.settings.INTERNAL_STORAGE_SETTINGS", "android.os.storage.action.MANAGE_STORAGE"],
         "steps": ["Open Settings", "Tap Storage", "Tap Clean up or Free up space"]
+      }
+    },
+    {
+      "id": "close_apps",
+      "name": "Close apps",
+      "tier": "guide",
+      "synonyms": ["close apps", "close all apps", "close my apps", "close background apps", "kill apps", "recent apps", "background apps", "clear ram", "free ram", "free up ram", "clear memory", "free memory", "free up memory"],
+      "actions": ["open"],
+      "note": "Android doesn't let apps close other apps. Here's how:",
+      "guide": {
+        "intents": [],
+        "steps": ["Swipe up from the bottom of the screen and hold to see your recent apps", "Swipe away the apps you're not using, or tap the clear-all button"]
+      }
+    },
+    {
+      "id": "restart_phone",
+      "name": "Restart",
+      "tier": "guide",
+      "synonyms": ["restart", "reboot", "restart my phone", "restart the phone", "switch off and on", "turn it off and on"],
+      "actions": ["open"],
+      "note": "Apps can't restart the phone. Here's how:",
+      "guide": {
+        "intents": [],
+        "steps": ["Press and hold the power button (on some phones, power and volume up together)", "Tap Restart"]
+      }
+    },
+    {
+      "id": "phone_checkup",
+      "name": "Phone checkup",
+      "tier": "info",
+      "synonyms": ["slow", "slowly", "slower", "sluggish", "lag", "lags", "lagging", "laggy", "hang", "hangs", "hanging", "freeze", "freezes", "freezing", "frozen", "stuck", "not responding", "speed up", "faster", "hot", "heating", "overheating", "getting hot", "checkup", "check up", "health check", "phone health", "optimize", "optimise"],
+      "actions": ["show"],
+      "guide": {
+        "intents": [],
+        "steps": ["Restart the phone", "Free up storage if it's nearly full", "Close apps you're not using"]
       }
     },
     {

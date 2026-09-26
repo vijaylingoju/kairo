@@ -8,11 +8,19 @@ import android.content.IntentFilter
 import android.hardware.display.DisplayManager
 import android.os.BatteryManager
 import android.os.Build
+import android.os.PowerManager
 import android.os.SystemClock
 import android.os.storage.StorageManager
 import android.view.Display
+import ai.kairo.gallery.index.Indexer
 import ai.kairo.gallery.settings.SettingIds.BATTERY_INFO
+import ai.kairo.gallery.settings.SettingIds.BATTERY_SAVER
+import ai.kairo.gallery.settings.SettingIds.BRIGHTNESS
+import ai.kairo.gallery.settings.SettingIds.CLEAN_UP
+import ai.kairo.gallery.settings.SettingIds.CLOSE_APPS
 import ai.kairo.gallery.settings.SettingIds.DEVICE_INFO
+import ai.kairo.gallery.settings.SettingIds.PHONE_CHECKUP
+import ai.kairo.gallery.settings.SettingIds.RESTART_PHONE
 import ai.kairo.gallery.settings.SettingIds.SOFTWARE_UPDATE
 import ai.kairo.gallery.settings.SettingIds.STORAGE_INFO
 import java.time.LocalDate
@@ -25,13 +33,84 @@ import kotlin.math.roundToInt
 /** Read-only answers about the phone (the info tier). Nothing here needs a permission. */
 class PhoneInfo(private val context: Context) {
 
+    private val settings = SystemSettingsController(context)
+
     fun answer(setting: KbSetting): SettingsResponse? = when (setting.id) {
         DEVICE_INFO -> deviceInfo(setting)
         STORAGE_INFO -> storageInfo(setting)
         BATTERY_INFO -> batteryInfo(setting)
         SOFTWARE_UPDATE -> softwareUpdate(setting)
+        PHONE_CHECKUP -> checkup()
         else -> null
     }
+
+    /**
+     * "My phone is slow / hot": checks the usual causes and suggests fixes only for what's actually wrong.
+     * Apps can't clear other apps' cache, close them or restart the phone, so those suggestions open the
+     * phone's own cleaner or show the steps.
+     */
+    private fun checkup(): SettingsResponse {
+        val rows = mutableListOf<Pair<String, String>>()
+        val items = mutableListOf<Suggestion>()
+        val cleanUp = { reason: String ->
+            Suggestion(CLEAN_UP, Actions.OPEN, "Clean up junk and cache", reason, "Open")
+        }
+
+        storage()?.let { (total, free) ->
+            val usedPercent = ((total - free) * 100 / total).toInt()
+            val full = usedPercent >= FULL_STORAGE_PERCENT
+            rows += "Storage" to "$usedPercent% used${warn(full)}"
+            if (full) items += cleanUp("Storage is $usedPercent% full, and phones slow down when it's nearly full.")
+        }
+
+        val memory = memory()
+        val freeMemoryPercent = (memory.availMem * 100 / memory.totalMem).toInt()
+        val lowMemory = memory.lowMemory || freeMemoryPercent < LOW_MEMORY_PERCENT
+        rows += "Free memory" to
+            "${InfoFormat.size(memory.availMem)} of ${InfoFormat.marketedRamGb(memory.totalMem)} GB${warn(lowMemory)}"
+        if (lowMemory) {
+            items += Suggestion(CLOSE_APPS, Actions.OPEN, "Close apps you're not using", "Only $freeMemoryPercent% of memory is free.", "Guide me")
+        }
+
+        val power = context.getSystemService(PowerManager::class.java)
+        val celsius = batteryState()?.let(::celsius)
+        val hot = power.currentThermalStatus >= PowerManager.THERMAL_STATUS_MODERATE || (celsius ?: 0f) >= HOT_BATTERY_C
+        rows += "Temperature" to (celsius?.let(InfoFormat::temperature) ?: "Unknown") + if (hot) " ⚠ hot" else ""
+        if (hot && (settings.brightnessPercent() ?: 0) > HOT_BRIGHTNESS_PERCENT) {
+            items += Suggestion(BRIGHTNESS, Actions.DECREASE, "Lower brightness", "A bright screen adds heat while the phone cools down.", "Apply")
+        }
+
+        val saver = power.isPowerSaveMode
+        rows += "Battery saver" to if (saver) "On ⚠" else "Off"
+        if (saver) {
+            items += Suggestion(BATTERY_SAVER, Actions.OFF, "Turn off battery saver", "It slows the processor down to save power.", "Guide me")
+        }
+
+        val upMs = SystemClock.elapsedRealtime()
+        val longUp = upMs >= RESTART_AFTER_MS
+        rows += "Last restart" to "${InfoFormat.duration(upMs)} ago${warn(longUp)}"
+        val restart = Suggestion(
+            RESTART_PHONE, Actions.OPEN, "Restart your phone",
+            if (longUp) "It's been on for ${InfoFormat.duration(upMs)}. A restart clears stuck apps and memory."
+            else "Clears stuck apps and memory.",
+            "Guide me",
+        )
+        if (longUp) items += restart
+
+        val found = items.size
+        if (found == 0) {
+            items += restart
+            items += cleanUp("Your phone's cleaner can clear other apps' leftover cache files.")
+        }
+        val text = when (found) {
+            0 -> "Everything I can check looks fine, so one app is probably the cause. If it keeps happening, these usually help:"
+            1 -> "I found 1 thing that can make your phone slow or hot:"
+            else -> "I found $found things that can make your phone slow or hot:"
+        } + if (Indexer.status.value.running) " (Kairo is also indexing photos right now, which uses extra power until it's done.)" else ""
+        return SettingsResponse.Suggestions(text, items, rows)
+    }
+
+    private fun warn(problem: Boolean) = if (problem) " ⚠" else ""
 
     private fun deviceInfo(setting: KbSetting): SettingsResponse {
         val name = deviceName()
@@ -68,14 +147,12 @@ class PhoneInfo(private val context: Context) {
     }
 
     private fun batteryInfo(setting: KbSetting): SettingsResponse {
-        // Sticky broadcast: passing no receiver just returns the latest battery state.
-        val battery = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-            ?: return SettingsResponse.Info("I couldn't read the battery.")
+        val battery = batteryState() ?: return SettingsResponse.Info("I couldn't read the battery.")
         val level = battery.getIntExtra(BatteryManager.EXTRA_LEVEL, 0) * 100 /
             battery.getIntExtra(BatteryManager.EXTRA_SCALE, 100).coerceAtLeast(1)
         val status = battery.getIntExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_UNKNOWN)
         val plugged = battery.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0
-        val celsius = battery.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, NO_VALUE).takeIf { it != NO_VALUE }?.div(10f)
+        val celsius = celsius(battery)
         val cycles = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             battery.getIntExtra(BatteryManager.EXTRA_CYCLE_COUNT, NO_VALUE)
         } else NO_VALUE
@@ -149,6 +226,12 @@ class PhoneInfo(private val context: Context) {
         return "$maker $model".trim()
     }
 
+    /** Sticky broadcast: passing no receiver just returns the latest battery state. */
+    private fun batteryState(): Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+
+    private fun celsius(battery: Intent): Float? =
+        battery.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, NO_VALUE).takeIf { it != NO_VALUE }?.div(10f)
+
     private fun memory() = ActivityManager.MemoryInfo().also {
         context.getSystemService(ActivityManager::class.java).getMemoryInfo(it)
     }
@@ -187,6 +270,9 @@ class PhoneInfo(private val context: Context) {
         const val FULL_STORAGE_PERCENT = 90
         const val OLD_PATCH_DAYS = 90
         const val HOT_BATTERY_C = 40f
+        const val HOT_BRIGHTNESS_PERCENT = 50
+        const val LOW_MEMORY_PERCENT = 15
+        const val RESTART_AFTER_MS = 7 * 24 * 3600 * 1000L
         const val NO_VALUE = Int.MIN_VALUE
 
         val HEALTH = mapOf(

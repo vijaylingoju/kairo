@@ -81,6 +81,7 @@ private val EXAMPLES = listOf(
     "Is my phone up to date?",
     "How much storage is left?",
     "Set a dog photo as my wallpaper",
+    "My phone is slow",
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -230,6 +231,7 @@ private fun AssistantMessage(
 
                 is SettingsResponse.Suggestions -> {
                     Text(r.text)
+                    if (r.rows.isNotEmpty()) FactRows(r.rows)
                     r.items.forEach { s ->
                         Surface(
                             color = MaterialTheme.colorScheme.surface,
@@ -264,30 +266,7 @@ private fun AssistantMessage(
 
                 is SettingsResponse.Facts -> {
                     Text(r.text)
-                    Surface(
-                        color = MaterialTheme.colorScheme.surface,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            r.rows.forEach { (label, value) ->
-                                Row {
-                                    Text(
-                                        label,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.weight(0.4f),
-                                    )
-                                    Text(
-                                        value,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        textAlign = TextAlign.End,
-                                        modifier = Modifier.weight(0.6f),
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    FactRows(r.rows)
                     r.open?.let { spec -> FilledTonalButton(onClick = { onLaunch(spec) }) { Text(r.openLabel) } }
                 }
 
@@ -323,6 +302,35 @@ private fun AssistantMessage(
                 }
 
                 is SettingsResponse.Info, null -> Text(message.text)
+            }
+        }
+    }
+}
+
+/** Label on the left, value on the right: phone facts, or what the checkup looked at. */
+@Composable
+private fun FactRows(rows: List<Pair<String, String>>) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            rows.forEach { (label, value) ->
+                Row {
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(0.4f),
+                    )
+                    Text(
+                        value,
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.weight(0.6f),
+                    )
+                }
             }
         }
     }

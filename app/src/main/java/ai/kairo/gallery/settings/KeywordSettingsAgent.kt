@@ -14,6 +14,7 @@ import ai.kairo.gallery.settings.SettingIds.EYE_PROTECTION
 import ai.kairo.gallery.settings.SettingIds.FLASHLIGHT
 import ai.kairo.gallery.settings.SettingIds.FONT_SIZE
 import ai.kairo.gallery.settings.SettingIds.MEDIA_VOLUME
+import ai.kairo.gallery.settings.SettingIds.PHONE_CHECKUP
 import ai.kairo.gallery.settings.SettingIds.RING_VOLUME
 import ai.kairo.gallery.settings.SettingIds.SCREEN_TIMEOUT
 import ai.kairo.gallery.settings.SettingIds.SILENT_MODE
@@ -73,12 +74,13 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
         when {
             // "Eye protection" / "dark mode" are explicit requests, not the eye-strain problem.
             setting != null && setting.id in setOf(EYE_PROTECTION, DARK_MODE) -> apply(setting.id, detectAction(query, setting))
-            isEyeStrain(query) -> eyeStrainSuggestions()
+            // "My phone is burning hot" is about the phone, not the user's eyes.
+            isEyeStrain(query) && setting?.id != PHONE_CHECKUP -> eyeStrainSuggestions()
             setting != null -> apply(setting.id, detectAction(query, setting), valueFor(setting.id, query))
             else -> SettingsResponse.Info(
                 "I know ${kb.settings.size} settings, like brightness, volume, Do Not Disturb, flashlight, " +
-                    "Wi-Fi and dark mode. You can also describe a problem, like \"my eyes hurt at night\", " +
-                    "or ask about your phone, like \"is my phone up to date?\".",
+                    "Wi-Fi and dark mode. You can also describe a problem, like \"my eyes hurt at night\" or " +
+                    "\"my phone is slow\", or ask about your phone, like \"is my phone up to date?\".",
             )
         }
     }

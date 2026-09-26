@@ -13,15 +13,16 @@ The assistant then changes the setting, opens the right system panel, or shows s
 | Area | Status |
 |---|---|
 | Chat UI (text + offline voice input) | ✅ Done |
-| Knowledge base of 29 entries (JSON) | ✅ Done |
+| Knowledge base of 33 entries (JSON) | ✅ Done |
 | Phone info answers: device, storage, battery, software update | ✅ Done, tested on phone (Gemma picks them in 1.6–3.5 s) |
 | Wallpaper from the gallery ("set my beach photo as wallpaper") | ✅ Done, tested on phone (home, lock, both) |
+| Slow / hot phone checkup + clean up cache, close apps, restart | ✅ Done, tested on phone (instant, no permissions) |
 | Keyword agent | ✅ Done, tested on phone |
 | Gemma (LLM) agent: picks setting + action (+ photo), keyword agent as fallback | ✅ Done, tested on phone |
 | Undo for every direct change (except wallpaper: confirm first instead) | ✅ Done |
 | Problem → suggestions (eye strain) | ✅ Done |
 | Single app: gallery home → Settings screen | ✅ Done |
-| Routing unit test | ✅ Passing (54 phrases) |
+| Routing unit test | ✅ Passing (68 phrases) |
 | Commit to `feat/settings-handle` | ✅ Committed |
 | Floating guide card, AccessibilityService, QS tile, onboarding | ⬜ Not started |
 
@@ -66,20 +67,21 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 | `settings/KeywordSettingsAgent.kt` | Routing, executors, undo, permission and guide responses |
 | `settings/SystemSettingsController.kt` | Brightness, font scale, timeout, rotation, touch sounds |
 | `settings/DeviceController.kt` | Volumes, silent/vibrate, Do Not Disturb, flashlight |
-| `settings/PhoneInfo.kt` | Read-only answers: phone info, storage, battery, software update (+ `InfoFormat` helpers) |
+| `settings/PhoneInfo.kt` | Read-only answers: phone info, storage, battery, software update, slow-phone checkup (+ `InfoFormat` helpers) |
 | `settings/Wallpapers.kt` | Finds photos with the gallery search, then decodes (EXIF-rotated), center-crops to the screen and sets the tapped one |
 | `settings/ui/*` | Chat screen, ViewModel, `SettingsActivity` |
 | `app/src/test/.../SettingsKbRoutingTest.kt` | Runs real phrases through the real JSON |
 
-## Supported settings (25) + phone info (4)
+## Supported settings (28) + phone info (5)
 
 | Tier | Settings | How |
 |---|---|---|
 | **Info** (read-only) | phone info, storage, battery, software update | Card with facts + a button to the right screen. No permission needed |
+| **Info → suggestions** | phone checkup ("my phone is slow / hot") | Checks storage, free memory, temperature, battery saver, days since restart (and whether Kairo is indexing); suggests fixes only for what's wrong, else restart + cleanup |
 | **Direct** (confirm first, no Undo) | wallpaper (home, lock or both) | Up to 3 matching gallery photos; the tapped one is set. Apps can't read the current wallpaper, so there's nothing to restore |
 | **Direct** (with Undo) | brightness, auto-brightness, text size, screen timeout, auto-rotate, media / ring / alarm volume, silent, vibrate, Do Not Disturb, flashlight, touch sounds | Changed by the app |
-| **Panel** | Wi-Fi, mobile data / internet, NFC | System panel pops up (apps can't toggle these since Android 10) |
-| **Guide** | Bluetooth, dark mode, eye protection, airplane mode, location, battery saver, app notifications, hotspot | Numbered steps + "Take me there" deep link |
+| **Panel** | Wi-Fi, mobile data / internet, NFC, cleanup ("clear cache") | System panel pops up (apps can't toggle these since Android 10). Cleanup opens vivo's iManager cleaner, which *can* clear other apps' cache |
+| **Guide** | Bluetooth, dark mode, eye protection, airplane mode, location, battery saver, app notifications, hotspot, close apps, restart | Numbered steps + "Take me there" deep link (close apps and restart have steps only) |
 
 **Permissions:** the user grants these on system screens the first time they're needed. The app shows a Grant / Try again card.
 - *Modify system settings* (`WRITE_SETTINGS`): brightness, auto-brightness, text size, timeout, rotation, touch sounds.
@@ -112,6 +114,10 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 | "Set my beach sunset photo as wallpaper" → Gemma: `photo: "beach sunset"` (1.7 s) → 1 match → tap → home + lock set, center-cropped | ✅ |
 | "Put the mountains on my lock screen" → `action: lock` → only the lock screen changes | ✅ |
 | "Set a dog photo as my wallpaper" with no dog photos → "I couldn't find a photo of "dog"" | ✅ |
+| "My phone is slow" → instant checkup: 16% storage used, 2.5 GB of 12 GB memory free, 33.7 °C, battery saver off, last restart 23 h ago → "looks fine" + Restart / Clean up | ✅ |
+| **Clean up junk and cache** / "clear cache" → vivo's cleaner (`PhoneCleanActivity2`). The very first time, iManager shows its user agreement instead | ✅ |
+| "my phone is getting hot", "my phone is very sluggish" → checkup instantly (keywords); "everything takes forever to open" → Gemma (6.7 s) → checkup | ✅ |
+| **Restart your phone** → guide steps | ✅ |
 | Silent / DND actually switching | ⬜ Needs DND access granted first |
 | Ring volume; location / battery saver / hotspot deep links | ⬜ Not yet |
 
@@ -125,6 +131,8 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 - `android.settings.SYSTEM_UPDATE_SETTINGS` opens **Google Play services' updater**, not vivo's. vivo's updater (`com.bbk.updater`) has no launcher icon; it opens with `com.bbk.updater.action.START_UPDATERACTIVITY`, so that's tried first.
 - The marketing name and skin aren't in `Build`: `ro.vivo.product.release.name` = "iQOO 15", `ro.vivo.os.build.display.id` = "OriginOS 6" (readable by the app through `getprop`). `Build.MODEL` is only "I2501".
 - Apps can't check for OS updates (no public API, and Kairo has no INTERNET). The update card shows how old the security patch is and opens the updater.
+- **Slow phone:** asked "my phone is slow", Gemma returned generic tips (clean up, close apps) in 5.9 s without looking at the phone. Now any query the keywords route to the checkup skips Gemma, and the prompt tells Gemma to pick `phone_checkup` for slow/hot phones. Gemma still sometimes answers `suggest` with the checkup as one item among generic tips, so any Gemma answer that mentions `phone_checkup` runs the checkup instead.
+- vivo's cleaner: `com.iqoo.secure.action.SPACE_MANAGER` → `com.vivo.imanager/…PhoneCleanActivity2`. It's also the first "Free up space" target of the storage card.
 - **Wallpaper:** one `setBitmap(FLAG_SYSTEM | FLAG_LOCK)` call changed only the home screen while the lock screen had vivo's live video wallpaper. Setting each screen in its own call fixes it.
 - **The iQOO currently has no CLIP model and no photos in `Pictures/Kairo`**, so gallery search (and the wallpaper feature) only find what's indexed. Two synthetic test pictures (`test_sunset_beach.jpg`, `test_mountains.jpg`) were added there for the wallpaper test.
 

@@ -21,12 +21,17 @@ object SettingIds {
     const val DARK_MODE = "dark_mode"
     const val EYE_PROTECTION = "eye_protection"
     const val WALLPAPER = "wallpaper"
+    const val BATTERY_SAVER = "battery_saver"
+    const val CLEAN_UP = "clean_up"
+    const val CLOSE_APPS = "close_apps"
+    const val RESTART_PHONE = "restart_phone"
 
     // Read-only (info tier)
     const val DEVICE_INFO = "device_info"
     const val STORAGE_INFO = "storage_info"
     const val BATTERY_INFO = "battery_info"
     const val SOFTWARE_UPDATE = "software_update"
+    const val PHONE_CHECKUP = "phone_checkup"
 }
 
 object Actions {
@@ -71,8 +76,12 @@ sealed interface SettingsResponse {
     /** A setting was changed directly. */
     data class Done(override val text: String, val undo: UndoToken?) : SettingsResponse
 
-    /** Problem → ranked settings the user can apply with one tap. */
-    data class Suggestions(override val text: String, val items: List<Suggestion>) : SettingsResponse
+    /** Problem → ranked settings the user can apply with one tap. [rows]: what was checked, e.g. by the phone checkup. */
+    data class Suggestions(
+        override val text: String,
+        val items: List<Suggestion>,
+        val rows: List<Pair<String, String>> = emptyList(),
+    ) : SettingsResponse
 
     /** We can't change it ourselves: show steps + deep link to the right screen. */
     data class Guide(

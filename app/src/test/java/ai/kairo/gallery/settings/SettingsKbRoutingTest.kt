@@ -78,7 +78,8 @@ class SettingsKbRoutingTest {
             "update my android version" to ("software_update" to "show"),
             "how much storage is left" to ("storage_info" to "show"),
             "my memory is full" to ("storage_info" to "show"),
-            "clear cache" to ("storage_info" to "show"),
+            "clear cache" to ("clean_up" to "open"),
+            "free up space" to ("clean_up" to "open"),
             "battery health" to ("battery_info" to "show"),
             "how much battery is left" to ("battery_info" to "show"),
             "turn on battery saver" to ("battery_saver" to "on"),
@@ -87,6 +88,21 @@ class SettingsKbRoutingTest {
             "put the puppy on my lock screen wallpaper" to ("wallpaper" to "lock"),
             "change the home screen background" to ("wallpaper" to "home"),
             "use the ice cream picture as my lock screen" to ("wallpaper" to "lock"),
+            // Slow phone
+            "my phone is so slow" to ("phone_checkup" to "show"),
+            "why is my phone lagging" to ("phone_checkup" to "show"),
+            "my phone is getting hot" to ("phone_checkup" to "show"),
+            "my phone is burning hot" to ("phone_checkup" to "show"),
+            "phone keeps hanging" to ("phone_checkup" to "show"),
+            "close background apps" to ("close_apps" to "open"),
+            "clear ram" to ("close_apps" to "open"),
+            "restart my phone" to ("restart_phone" to "open"),
+            // ...without stealing these
+            "wifi is slow" to ("wifi" to "open"),
+            "internet is slow" to ("mobile_data" to "open"),
+            "turn on hotspot" to ("hotspot" to "on"),
+            "boost the volume" to ("media_volume" to "increase"),
+            "make the screen warm" to ("eye_protection" to "on"),
         )
         val failures = cases.mapNotNull { (query, expected) ->
             val actual = route(query)
