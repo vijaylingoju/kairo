@@ -161,6 +161,20 @@ class IndexDb private constructor(ctx: Context) :
             if (c.moveToFirst()) c.getInt(0) else 0
         }
 
+    /** Wipes every indexed record, text index and CLIP vector. Photos themselves are untouched. */
+    fun clearAll() {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.execSQL("DELETE FROM images")
+            db.execSQL("DELETE FROM images_fts")
+            db.execSQL("DELETE FROM embeddings")
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     fun setEmbedding(mediaId: Long, vec: FloatArray) {
         val buf = ByteBuffer.allocate(vec.size * 4).order(ByteOrder.LITTLE_ENDIAN)
         buf.asFloatBuffer().put(vec)
@@ -191,13 +205,17 @@ class IndexDb private constructor(ctx: Context) :
         return out
     }
 
-    /** Full-text match; `term` must already be sanitized (letters/digits only). Prefix search. */
+    /**
+     * Full-text match; `term` must already be sanitized (letters/digits only).
+     * Prefix search only for words of 5+ letters ("snack" -> "snacks"): short prefixes match junk
+     * ("car*" hit "card" on every ID card, found in the 2026-09-26 evaluation).
+     */
     fun ftsIds(term: String): Set<Long> {
         if (term.isBlank()) return emptySet()
         val out = HashSet<Long>()
         readableDatabase.rawQuery(
             "SELECT docid FROM images_fts WHERE images_fts MATCH ?",
-            arrayOf("$term*")
+            arrayOf(if (term.length >= 5) "$term*" else term)
         ).use { c -> while (c.moveToNext()) out += c.getLong(0) }
         return out
     }

@@ -1,0 +1,19 @@
+alias	file_contains	what_it_is
+puppy	Screenshot_2026-03-27	Social-media profile screenshot with a golden retriever puppy (round photo, dark UI)
+person	Screenshot_2026-08-26	Movie still: close-up of a man with dramatic makeup/blood
+bajji	IMG20260923181119	Food photo: stuffed bread rolls / chilli bajji with cheese
+plate	IMG20260920211608	Food photo: pani puri style plate with chutneys
+snap	Snapchat-1480792861	Food photo: toast, curry and fried snacks
+icecream	IMG20260914214022	Hand holding an ice cream cone in a shop
+mcd	IMG20260914172513	McDonald's fries and cups on a table
+aadhaar	Screenshot_2026-09-01	DigiLocker Aadhaar card screenshot (number masked)
+bus	Screenshot_2026-08-28	Bus ticket Rajahmundry -> Hyderabad (sleeper/seater upgrade screen)
+irumudi	Screenshot_2026-08-22	Movie ticket: Irumudi, Muralikrishna Cinema, BALCONY N9-N11, booking WMWFP43
+dc	Screenshot_2026-08-07	Movie ticket: Surya Palace, PREMIUM H13-H14, booking SRYR0001009831
+odyssey	Screenshot_2026-07-16	Movie ticket: The Odyssey, Sarathi Cinemas, SCREEN 3 L13-L14, booking WPRQ24R
+maa	Screenshot_2026-06-20	Movie ticket: Maa Inti Bangaaram, Muralikrishna Cinema, BALCONY L6-L8, booking WWKCFD3
+pan	test_pan_card	SYNTHETIC PAN card ABCPT1234K, TEST USER KAIRO
+bill	test_restaurant_bill	SYNTHETIC restaurant tax invoice, Test Biryani House, Grand Total Rs. 1245.50 (mentions "Paid by UPI")
+upi	test_upi_receipt	SYNTHETIC UPI receipt, Rs. 350 paid to Ravi Test Stores, txn 425361789012
+train	test_train_ticket	SYNTHETIC IRCTC ERS, PNR 4521367890, 12727 Godavari Express, B2/34, 15-Oct-2026
+flight	test_boarding_pass	SYNTHETIC boarding pass, Kairo Airways KA 2345 HYD->BLR, seat 14C, 18 Oct 2026, PNR KX7Q2M

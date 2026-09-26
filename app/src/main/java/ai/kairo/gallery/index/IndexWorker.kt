@@ -72,6 +72,13 @@ object IndexScheduler {
         WorkManager.getInstance(ctx).enqueueUniqueWork(WORK_WATCH, policy, request)
     }
 
+    /** Stops any queued or running indexing (used before wiping the index). */
+    fun cancelAll(ctx: Context) {
+        val wm = WorkManager.getInstance(ctx)
+        wm.cancelUniqueWork(WORK_NOW)
+        wm.cancelUniqueWork(WORK_WATCH)
+    }
+
     /** Index right now (button / app start). */
     fun runNow(ctx: Context, force: Boolean = false) {
         val request = OneTimeWorkRequestBuilder<IndexWorker>()
