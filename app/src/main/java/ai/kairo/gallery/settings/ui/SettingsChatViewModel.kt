@@ -55,6 +55,8 @@ class SettingsChatViewModel(app: Application) : AndroidViewModel(app) {
 
     fun apply(settingId: String, action: String) = respond { agent.apply(settingId, action) }
 
+    fun setWallpaper(photoUri: String, screen: String) = respond { agent.setWallpaper(photoUri, screen) }
+
     fun undo(token: UndoToken) = respond { agent.undo(token) }
 
     private fun respond(block: suspend () -> SettingsResponse) {

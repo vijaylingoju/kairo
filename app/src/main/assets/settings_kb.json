@@ -287,6 +287,18 @@
       }
     },
     {
+      "id": "wallpaper",
+      "name": "Wallpaper",
+      "tier": "direct",
+      "synonyms": ["wallpaper", "wall paper", "background", "backdrop", "lock screen wallpaper", "home screen wallpaper", "lock screen photo", "lock screen picture", "as my lock screen", "as my home screen", "on my lock screen", "on my home screen"],
+      "actions": ["both", "home", "lock"],
+      "note": "Actions are the screen that gets the photo. The photo itself comes from gallery search.",
+      "guide": {
+        "intents": ["android.intent.action.SET_WALLPAPER"],
+        "steps": ["Long-press an empty spot on the home screen", "Tap Wallpaper", "Pick a photo"]
+      }
+    },
+    {
       "id": "device_info",
       "name": "Phone info",
       "tier": "info",

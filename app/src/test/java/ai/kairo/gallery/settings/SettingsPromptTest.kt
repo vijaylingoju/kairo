@@ -31,6 +31,16 @@ class SettingsPromptTest {
     }
 
     @Test
+    fun wallpaperKeepsThePhoto() {
+        assertEquals(
+            LlmDecision.Change("wallpaper", "lock", "golden retriever"),
+            parse("""{"type":"change","setting":"wallpaper","action":"lock","photo":" golden retriever "}"""),
+        )
+        // Only screens are valid wallpaper actions
+        assertNull(parse("""{"type":"change","setting":"wallpaper","action":"on","photo":"dog"}"""))
+    }
+
+    @Test
     fun rejectsUnknownSettingOrAction() {
         assertNull(parse("""{"type":"change","setting":"screen_saver","action":"on"}"""))
         assertNull(parse("""{"type":"change","setting":"flashlight","action":"increase"}"""))

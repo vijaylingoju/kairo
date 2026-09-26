@@ -8,6 +8,7 @@ import android.speech.RecognizerIntent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -57,6 +58,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -64,6 +67,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ai.kairo.gallery.settings.IntentSpec
 import ai.kairo.gallery.settings.SettingsResponse
+import coil.compose.AsyncImage
 
 private val EXAMPLES = listOf(
     "My eyes hurt at night",
@@ -76,6 +80,7 @@ private val EXAMPLES = listOf(
     "How do I turn on dark mode?",
     "Is my phone up to date?",
     "How much storage is left?",
+    "Set a dog photo as my wallpaper",
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -284,6 +289,24 @@ private fun AssistantMessage(
                         }
                     }
                     r.open?.let { spec -> FilledTonalButton(onClick = { onLaunch(spec) }) { Text(r.openLabel) } }
+                }
+
+                is SettingsResponse.ChoosePhoto -> {
+                    Text(r.text)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        r.photoUris.forEach { uri ->
+                            // Phone-shaped, so the user sees roughly what the screen will show.
+                            AsyncImage(
+                                model = Uri.parse(uri),
+                                contentDescription = "Use this photo as wallpaper",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(width = 96.dp, height = 208.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { vm.setWallpaper(uri, r.screen) },
+                            )
+                        }
+                    }
                 }
 
                 is SettingsResponse.OpenPanel -> {

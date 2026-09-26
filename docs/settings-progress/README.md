@@ -13,15 +13,16 @@ The assistant then changes the setting, opens the right system panel, or shows s
 | Area | Status |
 |---|---|
 | Chat UI (text + offline voice input) | ✅ Done |
-| Knowledge base of 28 entries (JSON) | ✅ Done |
+| Knowledge base of 29 entries (JSON) | ✅ Done |
 | Phone info answers: device, storage, battery, software update | ✅ Done, tested on phone (Gemma picks them in 1.6–3.5 s) |
-| Keyword agent (no LLM yet) | ✅ Done, tested on phone |
-| Undo for every direct change | ✅ Done |
+| Wallpaper from the gallery ("set my beach photo as wallpaper") | ✅ Done, tested on phone (home, lock, both) |
+| Keyword agent | ✅ Done, tested on phone |
+| Gemma (LLM) agent: picks setting + action (+ photo), keyword agent as fallback | ✅ Done, tested on phone |
+| Undo for every direct change (except wallpaper: confirm first instead) | ✅ Done |
 | Problem → suggestions (eye strain) | ✅ Done |
 | Single app: gallery home → Settings screen | ✅ Done |
-| Routing unit test | ✅ Passing (50 phrases) |
-| Commit to `feat/settings-handle` | ⏳ Blocked: git author name/email not set on this machine |
-| Gemma (LLM) agent | ⬜ Not started |
+| Routing unit test | ✅ Passing (54 phrases) |
+| Commit to `feat/settings-handle` | ✅ Committed |
 | Floating guide card, AccessibilityService, QS tile, onboarding | ⬜ Not started |
 
 ## How to open it
@@ -36,17 +37,22 @@ adb shell am start -n ai.kairo.gallery/.ui.MainActivity
 
 ```
 SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (interface)
-                                                    │  handle(query) / apply(id, action) / undo(token)
+                                                    │  handle(query) / apply(id, action, value) / setWallpaper(uri, screen) / undo(token)
                                                     ▼
-                                            KeywordSettingsAgent   (LLM agent will replace handle())
+                                            LlmSettingsAgent  (Gemma decides; falls back to keywords)
+                                                    ▼
+                                            KeywordSettingsAgent   (routing + executors)
                                              ├─ SettingsKb      ← assets/settings_kb.json
-                                             ├─ QueryParser     (action words: up/down/on/off/mute…)
+                                             ├─ QueryParser     (action words, wallpaper screen + photo)
                                              ├─ SystemSettingsController  (Settings.System, needs WRITE_SETTINGS)
-                                             └─ DeviceController          (volume, ringer, DND, flashlight)
+                                             ├─ DeviceController          (volume, ringer, DND, flashlight)
+                                             ├─ PhoneInfo                 (read-only facts)
+                                             └─ Wallpapers                (gallery search → pick → set)
 ```
 
 - The agent only picks a `setting_id` + `action` from the knowledge base. Kotlin code does the actual change. The model never invents settings paths.
-- Responses are typed: `Info`, `Done` (with undo), `Suggestions`, `Guide`, `Facts` (read-only rows + a button), `OpenPanel`, `NeedsPermission`.
+- Responses are typed: `Info`, `Done` (with undo), `Suggestions`, `Guide`, `Facts` (read-only rows + a button), `ChoosePhoto` (wallpaper thumbnails), `OpenPanel`, `NeedsPermission`.
+- Some settings need a detail besides the action: for the wallpaper, Gemma returns `"photo":"beach sunset"` (the keyword agent strips the filler words instead), and the action is the screen (`both` / `home` / `lock`).
 - The same `SettingsAgent` interface is meant for the floating bubble and a Quick Settings tile later.
 
 ### Files
@@ -61,14 +67,16 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 | `settings/SystemSettingsController.kt` | Brightness, font scale, timeout, rotation, touch sounds |
 | `settings/DeviceController.kt` | Volumes, silent/vibrate, Do Not Disturb, flashlight |
 | `settings/PhoneInfo.kt` | Read-only answers: phone info, storage, battery, software update (+ `InfoFormat` helpers) |
+| `settings/Wallpapers.kt` | Finds photos with the gallery search, then decodes (EXIF-rotated), center-crops to the screen and sets the tapped one |
 | `settings/ui/*` | Chat screen, ViewModel, `SettingsActivity` |
 | `app/src/test/.../SettingsKbRoutingTest.kt` | Runs real phrases through the real JSON |
 
-## Supported settings (24) + phone info (4)
+## Supported settings (25) + phone info (4)
 
 | Tier | Settings | How |
 |---|---|---|
 | **Info** (read-only) | phone info, storage, battery, software update | Card with facts + a button to the right screen. No permission needed |
+| **Direct** (confirm first, no Undo) | wallpaper (home, lock or both) | Up to 3 matching gallery photos; the tapped one is set. Apps can't read the current wallpaper, so there's nothing to restore |
 | **Direct** (with Undo) | brightness, auto-brightness, text size, screen timeout, auto-rotate, media / ring / alarm volume, silent, vibrate, Do Not Disturb, flashlight, touch sounds | Changed by the app |
 | **Panel** | Wi-Fi, mobile data / internet, NFC | System panel pops up (apps can't toggle these since Android 10) |
 | **Guide** | Bluetooth, dark mode, eye protection, airplane mode, location, battery saver, app notifications, hotspot | Numbered steps + "Take me there" deep link |
@@ -76,6 +84,7 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 **Permissions:** the user grants these on system screens the first time they're needed. The app shows a Grant / Try again card.
 - *Modify system settings* (`WRITE_SETTINGS`): brightness, auto-brightness, text size, timeout, rotation, touch sounds.
 - *Do Not Disturb access* (`ACCESS_NOTIFICATION_POLICY`): silent mode, Do Not Disturb, and ring volume or vibrate in some states.
+- `SET_WALLPAPER` is granted at install (normal permission), so the wallpaper needs no prompt.
 
 ## On-device test results (iQOO I2501, Android 16, OriginOS 6)
 
@@ -100,6 +109,9 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 | "What Android version do I have?" → "iQOO 15 running Android 16 (OriginOS 6)", 12 GB RAM, 256 GB, 1440 × 3168 · 144 Hz; **Open About phone** works | ✅ |
 | "How much storage is left?" → 214 GB free of 256 GB; **Free up space** opens the storage screen | ✅ |
 | "Battery health" → 100%, Good, 33.1 °C, 2 cycles; **Battery settings** opens iQOO's own battery manager (`com.iqoo.powersaving`) | ✅ |
+| "Set my beach sunset photo as wallpaper" → Gemma: `photo: "beach sunset"` (1.7 s) → 1 match → tap → home + lock set, center-cropped | ✅ |
+| "Put the mountains on my lock screen" → `action: lock` → only the lock screen changes | ✅ |
+| "Set a dog photo as my wallpaper" with no dog photos → "I couldn't find a photo of "dog"" | ✅ |
 | Silent / DND actually switching | ⬜ Needs DND access granted first |
 | Ring volume; location / battery saver / hotspot deep links | ⬜ Not yet |
 
@@ -113,6 +125,8 @@ SettingsChatScreen ──► SettingsChatViewModel ──► SettingsAgent (inte
 - `android.settings.SYSTEM_UPDATE_SETTINGS` opens **Google Play services' updater**, not vivo's. vivo's updater (`com.bbk.updater`) has no launcher icon; it opens with `com.bbk.updater.action.START_UPDATERACTIVITY`, so that's tried first.
 - The marketing name and skin aren't in `Build`: `ro.vivo.product.release.name` = "iQOO 15", `ro.vivo.os.build.display.id` = "OriginOS 6" (readable by the app through `getprop`). `Build.MODEL` is only "I2501".
 - Apps can't check for OS updates (no public API, and Kairo has no INTERNET). The update card shows how old the security patch is and opens the updater.
+- **Wallpaper:** one `setBitmap(FLAG_SYSTEM | FLAG_LOCK)` call changed only the home screen while the lock screen had vivo's live video wallpaper. Setting each screen in its own call fixes it.
+- **The iQOO currently has no CLIP model and no photos in `Pictures/Kairo`**, so gallery search (and the wallpaper feature) only find what's indexed. Two synthetic test pictures (`test_sunset_beach.jpg`, `test_mountains.jpg`) were added there for the wallpaper test.
 
 ## Known gaps / TODO
 

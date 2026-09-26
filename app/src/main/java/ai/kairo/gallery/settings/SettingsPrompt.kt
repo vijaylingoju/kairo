@@ -4,7 +4,8 @@ import org.json.JSONObject
 
 /** What Gemma decided, already checked against the knowledge base. */
 sealed interface LlmDecision {
-    data class Change(val settingId: String, val action: String) : LlmDecision
+    /** [value]: extra detail, e.g. the photo to look for when the setting is the wallpaper. */
+    data class Change(val settingId: String, val action: String, val value: String? = null) : LlmDecision
     data class Suggest(val message: String, val items: List<Item>) : LlmDecision {
         data class Item(val settingId: String, val action: String, val reason: String)
     }
@@ -21,6 +22,7 @@ ${kb.settings.joinToString("\n") { "${it.id} (${it.name}): ${it.actions.joinToSt
 Phone state now: $phoneState
 Reply with exactly one JSON object on a single line, no markdown. Use one of these shapes:
 {"type":"change","setting":"<id>","action":"<action>"}
+{"type":"change","setting":"wallpaper","action":"<both|home|lock>","photo":"<what the photo shows, in English>"}
 {"type":"suggest","message":"<short intro>","items":[{"setting":"<id>","action":"<action>","reason":"<why, under 12 words>"}]}
 {"type":"none","message":"<short reply>"}
 - "change": the user asks for one specific setting, or for facts about the phone (use action "show").
@@ -30,6 +32,7 @@ Examples:
 User: make it louder -> {"type":"change","setting":"media_volume","action":"increase"}
 User: I can't see the screen in the sun -> {"type":"change","setting":"brightness","action":"increase"}
 User: is my phone up to date -> {"type":"change","setting":"software_update","action":"show"}
+User: put my dog photo on the lock screen -> {"type":"change","setting":"wallpaper","action":"lock","photo":"dog"}
 User: I'm going into a meeting -> {"type":"suggest","message":"For your meeting:","items":[{"setting":"dnd","action":"on","reason":"Blocks calls and notifications"},{"setting":"vibrate_mode","action":"on","reason":"You still feel important calls"}]}
 User: my battery drains too fast -> {"type":"suggest","message":"These can save battery:","items":[{"setting":"battery_saver","action":"on","reason":"Limits background activity"},{"setting":"brightness","action":"decrease","reason":"The screen uses the most power"}]}
 User: order me a pizza -> {"type":"none","message":"I can only help with phone settings."}
@@ -43,7 +46,8 @@ User: $userQuery
             "change" -> {
                 val id = json.optString("setting")
                 val action = json.optString("action")
-                if (valid(id, action)) LlmDecision.Change(id, action) else null
+                val photo = json.optString("photo").trim().take(MAX_TEXT).ifEmpty { null }
+                if (valid(id, action)) LlmDecision.Change(id, action, photo) else null
             }
             "suggest" -> {
                 val array = json.optJSONArray("items") ?: return null

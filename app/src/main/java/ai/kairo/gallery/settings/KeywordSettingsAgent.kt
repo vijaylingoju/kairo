@@ -19,6 +19,7 @@ import ai.kairo.gallery.settings.SettingIds.SCREEN_TIMEOUT
 import ai.kairo.gallery.settings.SettingIds.SILENT_MODE
 import ai.kairo.gallery.settings.SettingIds.TOUCH_SOUNDS
 import ai.kairo.gallery.settings.SettingIds.VIBRATE_MODE
+import ai.kairo.gallery.settings.SettingIds.WALLPAPER
 import ai.kairo.gallery.settings.QueryParser.detectAction
 import ai.kairo.gallery.settings.QueryParser.isEyeStrain
 import kotlinx.coroutines.Dispatchers
@@ -39,7 +40,12 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
     private val settings = SystemSettingsController(app)
     private val device = DeviceController(app)
     private val phoneInfo = PhoneInfo(app)
+    private val wallpapers = Wallpapers(app)
     val kb: SettingsKb by lazy { SettingsKb.load(app) }
+
+    /** The extra detail a setting needs from the query, e.g. which photo for the wallpaper. */
+    fun valueFor(settingId: String, query: String): String? =
+        if (settingId == WALLPAPER) QueryParser.wallpaperPhoto(query).ifEmpty { null } else null
 
     /** One-line snapshot for the LLM prompt, so suggestions fit the current situation. */
     fun phoneState(): String {
@@ -68,7 +74,7 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
             // "Eye protection" / "dark mode" are explicit requests, not the eye-strain problem.
             setting != null && setting.id in setOf(EYE_PROTECTION, DARK_MODE) -> apply(setting.id, detectAction(query, setting))
             isEyeStrain(query) -> eyeStrainSuggestions()
-            setting != null -> apply(setting.id, detectAction(query, setting))
+            setting != null -> apply(setting.id, detectAction(query, setting), valueFor(setting.id, query))
             else -> SettingsResponse.Info(
                 "I know ${kb.settings.size} settings, like brightness, volume, Do Not Disturb, flashlight, " +
                     "Wi-Fi and dark mode. You can also describe a problem, like \"my eyes hurt at night\", " +
@@ -77,12 +83,12 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
         }
     }
 
-    override suspend fun apply(settingId: String, action: String): SettingsResponse =
+    override suspend fun apply(settingId: String, action: String, value: String?): SettingsResponse =
         withContext(Dispatchers.IO) {
             val setting = kb[settingId] ?: return@withContext SettingsResponse.Info("I don't know that setting yet.")
             try {
                 when (setting.tier) {
-                    Tier.DIRECT -> direct(setting, action)
+                    Tier.DIRECT -> direct(setting, action, value)
                     Tier.PANEL -> setting.panel?.let { panel ->
                         SettingsResponse.OpenPanel(
                             setting.note ?: "Opening ${setting.name} controls…",
@@ -99,6 +105,14 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
                 guide(setting, CANT_CHANGE)
             }
         }
+
+    override suspend fun setWallpaper(photoUri: String, screen: String): SettingsResponse = withContext(Dispatchers.IO) {
+        try {
+            wallpapers.set(photoUri, screen)
+        } catch (e: Exception) {
+            SettingsResponse.Info("I couldn't set that photo as the wallpaper: ${e.message}")
+        }
+    }
 
     override suspend fun undo(token: UndoToken): SettingsResponse = withContext(Dispatchers.IO) {
         val setting = kb[token.settingId] ?: return@withContext SettingsResponse.Info("Nothing to undo.")
@@ -131,7 +145,7 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
 
     // ---- Direct changes ----
 
-    private suspend fun direct(setting: KbSetting, action: String): SettingsResponse {
+    private suspend fun direct(setting: KbSetting, action: String, value: String?): SettingsResponse {
         if (setting.id in WRITE_SETTINGS && !settings.canWrite()) return needsWritePermission(setting.id, action)
         if (setting.id in POLICY_REQUIRED && !device.hasPolicyAccess()) return needsPolicyAccess(setting.id, action)
 
@@ -149,6 +163,7 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
             DND -> toggleDnd(setting, action)
             FLASHLIGHT -> toggleFlashlight(setting, action)
             TOUCH_SOUNDS -> toggle(setting, settings.isTouchSoundsOn(), action, ::setTouchSounds)
+            WALLPAPER -> wallpapers.choose(setting, action, value)
             else -> guide(setting)
         }
     }

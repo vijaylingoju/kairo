@@ -20,6 +20,7 @@ object SettingIds {
     const val TOUCH_SOUNDS = "touch_sounds"
     const val DARK_MODE = "dark_mode"
     const val EYE_PROTECTION = "eye_protection"
+    const val WALLPAPER = "wallpaper"
 
     // Read-only (info tier)
     const val DEVICE_INFO = "device_info"
@@ -35,6 +36,11 @@ object Actions {
     const val OFF = "off"
     const val OPEN = "open"
     const val SHOW = "show"
+
+    // Wallpaper: which screen gets the photo
+    const val BOTH = "both"
+    const val HOME = "home"
+    const val LOCK = "lock"
 }
 
 /** An intent the UI should launch. Kept as data so the agent never needs an Activity. */
@@ -83,6 +89,14 @@ sealed interface SettingsResponse {
         val openLabel: String,
     ) : SettingsResponse
 
+    /** Gallery photos to pick a wallpaper from. Nothing changes until the user taps one. */
+    data class ChoosePhoto(
+        override val text: String,
+        val photoUris: List<String>,
+        /** [Actions.BOTH], [Actions.HOME] or [Actions.LOCK]. */
+        val screen: String,
+    ) : SettingsResponse
+
     /** System panel / dialog (Wi-Fi, internet, NFC...). The UI auto-launches it. */
     data class OpenPanel(override val text: String, val open: IntentSpec) : SettingsResponse
 
@@ -98,7 +112,10 @@ sealed interface SettingsResponse {
 /** Single entry point used by the in-app chat, the floating bubble, the QS tile, etc. */
 interface SettingsAgent {
     suspend fun handle(query: String): SettingsResponse
-    suspend fun apply(settingId: String, action: String): SettingsResponse
+
+    /** [value] is the extra detail some settings need, e.g. the photo to look for ("beach") for the wallpaper. */
+    suspend fun apply(settingId: String, action: String, value: String? = null): SettingsResponse
+    suspend fun setWallpaper(photoUri: String, screen: String): SettingsResponse
     suspend fun undo(token: UndoToken): SettingsResponse
     fun close() {}
 }

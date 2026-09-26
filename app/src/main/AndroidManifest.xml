@@ -26,6 +26,8 @@
         tools:ignore="ProtectedPermissions" />
     <!-- Settings assistant: silent mode + Do Not Disturb. Granted by the user on a system screen. -->
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+    <!-- Settings assistant: wallpaper from the gallery. Normal permission, granted at install. -->
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
 
     <!-- Package visibility (Android 11+). -->
     <queries>

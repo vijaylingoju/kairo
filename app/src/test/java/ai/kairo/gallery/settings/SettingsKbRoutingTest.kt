@@ -82,12 +82,29 @@ class SettingsKbRoutingTest {
             "battery health" to ("battery_info" to "show"),
             "how much battery is left" to ("battery_info" to "show"),
             "turn on battery saver" to ("battery_saver" to "on"),
+            // Wallpaper: the action is which screen gets the photo
+            "set my beach photo as wallpaper" to ("wallpaper" to "both"),
+            "put the puppy on my lock screen wallpaper" to ("wallpaper" to "lock"),
+            "change the home screen background" to ("wallpaper" to "home"),
+            "use the ice cream picture as my lock screen" to ("wallpaper" to "lock"),
         )
         val failures = cases.mapNotNull { (query, expected) ->
             val actual = route(query)
             if (actual != expected) "\"$query\" → $actual, expected $expected" else null
         }
         assertTrue(failures.joinToString("\n", prefix = "\n"), failures.isEmpty())
+    }
+
+    @Test
+    fun wallpaperKeepsOnlyThePhotoDescription() {
+        val cases = mapOf(
+            "set my beach photo as wallpaper" to "beach",
+            "change my wallpaper to the golden retriever" to "golden retriever",
+            "put the puppy on my lock screen wallpaper" to "puppy",
+            "use the ice-cream picture as my lock screen" to "ice cream",
+            "change wallpaper" to "",
+        )
+        cases.forEach { (query, photo) -> assertEquals(query, photo, QueryParser.wallpaperPhoto(query)) }
     }
 
     @Test

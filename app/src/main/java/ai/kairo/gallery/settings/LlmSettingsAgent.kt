@@ -27,7 +27,11 @@ class LlmSettingsAgent(context: Context) : SettingsAgent {
         if (!Llm.isReady()) return keywords.handle(query)
         val decision = ask(query) ?: return keywords.handle(query)
         return when (decision) {
-            is LlmDecision.Change -> keywords.apply(decision.settingId, decision.action)
+            is LlmDecision.Change -> keywords.apply(
+                decision.settingId,
+                decision.action,
+                decision.value ?: keywords.valueFor(decision.settingId, query),
+            )
             is LlmDecision.Suggest -> SettingsResponse.Suggestions(
                 decision.message,
                 decision.items.map { suggestion(it) },
@@ -38,7 +42,9 @@ class LlmSettingsAgent(context: Context) : SettingsAgent {
         }
     }
 
-    override suspend fun apply(settingId: String, action: String) = keywords.apply(settingId, action)
+    override suspend fun apply(settingId: String, action: String, value: String?) = keywords.apply(settingId, action, value)
+
+    override suspend fun setWallpaper(photoUri: String, screen: String) = keywords.setWallpaper(photoUri, screen)
 
     override suspend fun undo(token: UndoToken) = keywords.undo(token)
 
