@@ -28,6 +28,9 @@ data class IndexedImage(
     val status: String,           // done | ocr_only | failed
     val error: String?,
     val indexMs: Long,
+    // Things in the photo, each with its OWN attributes: "red road bicycle", "blue bicycle", "red handlebar
+    // wrap". Search matches a colour to its object inside one phrase - see search/ObjectMatch.
+    val objects: List<String> = emptyList(),
 )
 
 /**
@@ -36,7 +39,7 @@ data class IndexedImage(
  * `embeddings` holds the CLIP vector per image (own table, so a Gemma re-index never drops it).
  */
 class IndexDb private constructor(ctx: Context) :
-    SQLiteOpenHelper(ctx, "kairo_index.db", null, 2) {
+    SQLiteOpenHelper(ctx, "kairo_index.db", null, 3) {
 
     override fun onCreate(db: SQLiteDatabase) {
         createImageTables(db)
@@ -45,6 +48,9 @@ class IndexDb private constructor(ctx: Context) :
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) createEmbeddingTable(db)
+        // NULL = indexed before object phrases existed; known() reports those as stale, so the next
+        // "Index now" re-reads them with Gemma. Nothing is wiped and CLIP vectors are kept.
+        if (oldVersion < 3) db.execSQL("ALTER TABLE images ADD COLUMN objects TEXT")
     }
 
     private fun createEmbeddingTable(db: SQLiteDatabase) {
@@ -71,7 +77,8 @@ class IndexDb private constructor(ctx: Context) :
                 status TEXT,
                 error TEXT,
                 index_ms INTEGER,
-                indexed_at INTEGER
+                indexed_at INTEGER,
+                objects TEXT
             )
             """.trimIndent()
         )
@@ -79,10 +86,16 @@ class IndexDb private constructor(ctx: Context) :
         db.execSQL("CREATE VIRTUAL TABLE images_fts USING fts4(description, tags, ocr_text, fields_text)")
     }
 
-    /** media_id -> (date_modified, status) for change detection. */
+    /**
+     * media_id -> (date_modified, status) for change detection. A photo finished before object phrases
+     * existed reads as "stale" rather than "done", so it gets indexed again once.
+     */
     fun known(): Map<Long, Pair<Long, String>> {
         val out = HashMap<Long, Pair<Long, String>>()
-        readableDatabase.rawQuery("SELECT media_id, date_modified, status FROM images", null).use { c ->
+        readableDatabase.rawQuery(
+            "SELECT media_id, date_modified, CASE WHEN status = 'done' AND objects IS NULL THEN 'stale' ELSE status END FROM images",
+            null
+        ).use { c ->
             while (c.moveToNext()) out[c.getLong(0)] = c.getLong(1) to (c.getString(2) ?: "")
         }
         return out
@@ -110,6 +123,7 @@ class IndexDb private constructor(ctx: Context) :
                 put("error", img.error)
                 put("index_ms", img.indexMs)
                 put("indexed_at", System.currentTimeMillis())
+                put("objects", JSONArray(img.objects).toString())
             }
             db.insertWithOnConflict("images", null, v, SQLiteDatabase.CONFLICT_REPLACE)
 
@@ -120,7 +134,7 @@ class IndexDb private constructor(ctx: Context) :
                 arrayOf<Any>(
                     img.mediaId,
                     img.category.replace('_', ' ') + " " + img.description,
-                    img.tags.joinToString(" "),
+                    (img.tags + img.objects).joinToString(" "),
                     img.ocrText,
                     fieldsText
                 )
@@ -229,6 +243,7 @@ class IndexDb private constructor(ctx: Context) :
         }
         val tagsArr = runCatching { JSONArray(s("tags") ?: "[]") }.getOrDefault(JSONArray())
         val fieldsObj = runCatching { JSONObject(s("fields_json") ?: "{}") }.getOrDefault(JSONObject())
+        val objectsArr = runCatching { JSONArray(s("objects") ?: "[]") }.getOrDefault(JSONArray())
         return IndexedImage(
             mediaId = l("media_id"),
             uri = s("uri"),
@@ -246,6 +261,7 @@ class IndexDb private constructor(ctx: Context) :
             status = s("status") ?: "",
             error = s("error"),
             indexMs = l("index_ms"),
+            objects = (0 until objectsArr.length()).map { objectsArr.optString(it) },
         )
     }
 

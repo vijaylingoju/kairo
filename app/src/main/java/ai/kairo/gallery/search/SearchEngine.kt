@@ -16,6 +16,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import kotlin.math.ln
+import kotlin.math.sqrt
 
 data class Filter(
     val categories: Set<String>,
@@ -57,7 +58,21 @@ object SearchEngine {
     // Calibration (tools/eval, 2026-09-26, 18 photos, CLIP ViT-B/16): a correct photo beat the best wrong
     // photo by only 0.003-0.022 adjusted, and a non-existent "snowy mountains" still scored 0.069 on a
     // movie still. So CLIP alone can't decide what to include; agreement with Gemma's tags/text can.
-    private const val ADJ_STRICT = 0.08f   // CLIP-only result (no tag/text agreement) must be this strong
+    // The bar for a CLIP-only match is THIS query's own score spread, not a fixed number: adjusted scores
+    // shift scale per query (max 0.036-0.093 over a 6-query sample on 579 photos), so one absolute cut
+    // either admits everything or nothing. The old absolute 0.08 admitted nothing in 5 of those 6, which
+    // silently disabled every CLIP-only match and capped recall at whatever words Gemma happened to write.
+    // With NO text agreement the concept may simply be absent, and CLIP cannot tell: "snowy mountains"
+    // scores the highest raw (0.275) and adjusted (0.088) of any query tried, on a library with none.
+    // So branch 3 keeps the old conservative absolute bar as well as the relative one.
+    private const val ADJ_ABSENT_BAR = 0.08f
+    private const val Z_STRICT = 2.5f       // CLIP-only result must be this many SDs above the query mean
+    private const val ADJ_FLOOR = 0.015f    // ...and still clearly positive, so a flat score field matches nothing
+    private const val VERIFY_MAX = 8        // fallback only: text-matched photos Gemma looks at, ~2 s each
+    private const val EVENT_MIN_ANCHORS = 2                  // confirmed matches needed to call it an event
+    private const val EVENT_GAP_MS = 6 * 3600_000L           // matches further apart than this are separate events
+    private const val EVENT_PAD_MS = 3 * 3600_000L           // photos this close to an event's matches belong to it
+    private const val MAX_BROWSE = 60       // a bare category ("person") is a browse, not a search: cap it
     private const val ADJ_GAP = 0.03f      // ...and within this distance of the best match
     private const val VISUAL_WEIGHT = 150f // adjusted 0.06 ≈ 9 points (a category hit is 5)
     private val BASELINE_PROMPTS = listOf(
@@ -73,7 +88,148 @@ object SearchEngine {
     // Broad visual categories: a hint, not a filter, when the query says more ("fast food", "man with makeup").
     private val BROAD_CATEGORIES = setOf("food", "person", "place")
 
-    suspend fun search(ctx: Context, query: String, useLlm: Boolean = true): SearchResult = withContext(Dispatchers.IO) {
+    /**
+     * Three tiers, cheapest first; each answers only if the one before it found nothing.
+     *
+     * 1. Object phrases (~200 ms). Gemma already looked at every photo while indexing and wrote what is in
+     *    it with the attributes attached ("red road bicycle"). Matching the query against those is a
+     *    lookup, and binding the colour to its object makes it precise - see ObjectMatch.
+     * 2. Gemma's query rewrite (~2.5 s), for requests the rules can't read: other languages, slang.
+     * 3. Gemma looking at the few text-matched candidates (~2 s each). Accurate but slow, so it is the
+     *    fallback, not the path: asking per photo at search time cost 25-75 s a query.
+     *
+     * Documents, fields, category browses and date questions skip all this: text and regex are exact there.
+     */
+    suspend fun search(ctx: Context, query: String, useLlm: Boolean = true): SearchResult {
+        val fast = searchOnce(ctx, query, useLlm = false)
+        if (isContentQuery(fast)) phraseSearch(ctx, fast, query)?.let { return it }
+
+        val base = if (fast.items.isNotEmpty() || !useLlm || !Llm.isReady()) fast
+        else searchOnce(ctx, query, useLlm = true)
+        if (base !== fast && isContentQuery(base)) {
+            phraseSearch(ctx, base, base.filter.visual ?: base.filter.keywords.joinToString(" "))?.let { return it }
+        }
+        return if (useLlm && Llm.isReady() && isContentQuery(base)) verified(ctx, base) else base
+    }
+
+    /** "red bicycle", "a hippo", "iqoo hackathon" - not a document, a field, a bare category or a date. */
+    private fun isContentQuery(r: SearchResult): Boolean {
+        val f = r.filter
+        if (f.wantedField != null) return false
+        if (f.categories.any { it in DOC_CATEGORIES }) return false
+        if (f.keywords.isEmpty() && f.categories.isNotEmpty()) return false
+        return f.keywords.isNotEmpty() || f.visual != null
+    }
+
+    /**
+     * Tier 1: photos whose object phrases hold the query, best CLIP match first, plus photos from the same
+     * event. Null when nothing matches, so the caller falls through to the slower tiers.
+     */
+    private suspend fun phraseSearch(ctx: Context, r: SearchResult, text: String): SearchResult? = withContext(Dispatchers.IO) {
+        val t0 = SystemClock.elapsedRealtime()
+        val groups = ObjectMatch.groups(text)
+        if (groups.isEmpty()) return@withContext null
+        val db = IndexDb.get(ctx)
+        val all = db.all()
+        val inDate = all.filter { img ->
+            (r.filter.dateFromMs == null || img.dateTaken >= r.filter.dateFromMs) &&
+                (r.filter.dateToMs == null || img.dateTaken <= r.filter.dateToMs)
+        }
+        val hits = inDate.filter { ObjectMatch.matches(it, groups) }
+        if (hits.isEmpty()) return@withContext null
+        val ranked = hits.sortedWith(
+            compareByDescending<IndexedImage> { r.adjusted[it.mediaId] ?: Float.NEGATIVE_INFINITY }.thenByDescending { it.dateTaken }
+        )
+        val mates = eventMates(db, all, ranked, r.filter.keywords)
+        Log.i(TAG, "\"${r.query}\" phrases $groups -> ${ranked.size} + ${mates.size} from the same event")
+        r.copy(items = ranked + mates, tookMs = r.tookMs + (SystemClock.elapsedRealtime() - t0))
+    }
+
+    /**
+     * Tier 3, the fallback: Gemma looks at the best few text-matched photos and keeps what it confirms,
+     * then photos from the same event are added. Reached only when no object phrase matched - text found
+     * something (in OCR or tags, say) that the phrases don't say.
+     *
+     * Only text candidates, and only a handful: each look costs ~2 s. CLIP's top picks used to be added too,
+     * but on this library they were mostly wrong (sheep, a cow and a teddy bear for "a dog"), and for a
+     * query with no match at all they only made "nothing found" take 30 s.
+     *
+     * A photo whose own OCR text holds every word of a multi-word query is accepted without asking:
+     * printed text is ground truth, and Gemma only judges what is visible.
+     */
+    private suspend fun verified(ctx: Context, r: SearchResult): SearchResult = withContext(Dispatchers.IO) {
+        val t0 = SystemClock.elapsedRealtime()
+        val db = IndexDb.get(ctx)
+        val all = db.all()
+        val kw = r.filter.keywords
+        // Whole words, and only for 2+ words. ML Kit turns noise into short words: a protest photo's OCR
+        // read "E CaT Armos", so a lone "cat" in OCR "proved" it was a cat. Two query words appearing
+        // together by accident is far less likely; one word goes to Gemma like any other photo.
+        val kwRegex = kw.map { Regex("""\b""" + Regex.escape(it) + """\b""", RegexOption.IGNORE_CASE) }
+        fun ocrProves(img: IndexedImage) = kwRegex.size >= 2 && kwRegex.all { it.containsMatchIn(img.ocrText) }
+
+        val candidates = r.items.take(VERIFY_MAX)
+
+        val proven = candidates.filter(::ocrProves).map { it.mediaId }.toSet()
+        val confirmed = Verifier.confirm(ctx, r.query, candidates.filter { it.mediaId !in proven })
+            .map { it.mediaId }.toSet()
+        val kept = candidates.filter { it.mediaId in proven || it.mediaId in confirmed }
+        val mates = eventMates(db, all, kept, kw)
+        Log.i(
+            TAG,
+            "\"${r.query}\" verify: ${candidates.size} candidates (${proven.size} proven by OCR) -> ${kept.size}" +
+                " + ${mates.size} from the same event"
+        )
+        r.copy(items = kept + mates, tookMs = r.tookMs + (SystemClock.elapsedRealtime() - t0))
+    }
+
+    /**
+     * Photos from the same event as the confirmed matches.
+     *
+     * "iqoo hackathon" has five posters and cards showing the logo, and five photos of people coding at
+     * desks. Gemma rightly answers "People working at a hackathon event. no" for the second five - the
+     * logo is not in them - yet they ARE pictures of that hackathon. The pixels can't say so; the capture
+     * time can. So when 2+ confirmed matches were shot close together, photos from that stretch of time
+     * that share at least one query word are included as well.
+     *
+     * Needs both signals: the time window alone would sweep in everything shot that day, and a shared
+     * word alone is the OR-matching that returned 53 photos for "red bicycle".
+     */
+    private fun eventMates(db: IndexDb, all: List<IndexedImage>, kept: List<IndexedImage>, kw: List<String>): List<IndexedImage> {
+        if (kw.isEmpty()) return emptyList()
+        // Only photos with a real capture time. With no EXIF date, GalleryScanner falls back to the file's
+        // modified time - so 560 of 566 copied-in stock photos all looked "taken" on the same afternoon,
+        // formed one giant event, and "red bicycle" pulled in a Ferrari, strawberries and a red mask.
+        fun realTime(img: IndexedImage) = img.dateTaken > 0 && img.dateTaken != img.dateModified * 1000
+        val times = kept.filter(::realTime).map { it.dateTaken }.sorted()
+        if (times.size < EVENT_MIN_ANCHORS) return emptyList()
+
+        // Split the confirmed capture times into runs with no gap longer than EVENT_GAP_MS; each run of
+        // 2+ is an event. A match that stands alone in time proves nothing about its neighbours.
+        val windows = ArrayList<LongRange>()
+        var start = times.first()
+        var prev = start
+        var count = 1
+        for (t in times.drop(1)) {
+            if (t - prev > EVENT_GAP_MS) {
+                if (count >= EVENT_MIN_ANCHORS) windows += (start - EVENT_PAD_MS)..(prev + EVENT_PAD_MS)
+                start = t
+                count = 0
+            }
+            prev = t
+            count++
+        }
+        if (count >= EVENT_MIN_ANCHORS) windows += (start - EVENT_PAD_MS)..(prev + EVENT_PAD_MS)
+        if (windows.isEmpty()) return emptyList()
+
+        val keptIds = kept.map { it.mediaId }.toSet()
+        val sharesWord = kw.flatMap { db.ftsIds(it) }.toSet()
+        return all.filter { img ->
+            img.mediaId !in keptIds && img.mediaId in sharesWord && realTime(img) && windows.any { img.dateTaken in it }
+        }.sortedBy { it.dateTaken }
+    }
+
+    private suspend fun searchOnce(ctx: Context, query: String, useLlm: Boolean): SearchResult = withContext(Dispatchers.IO) {
         val t0 = SystemClock.elapsedRealtime()
         val rules = RuleParser.parse(query)
         // Fast path (~2 s saved): rules already fully understood it ("my PAN number", "movie tickets",
@@ -94,6 +250,8 @@ object SearchEngine {
         val visual = visualScores(ctx, db, query, rules, filter)
         val sims = visual?.raw
         val adj = visual?.adjusted
+        // This query own CLIP bar (see Z_STRICT); unreachable when there is no visual signal at all.
+        val adjStrict = visual?.strict ?: Float.MAX_VALUE
 
         // Document/field questions trust exact text; CLIP only reorders. Otherwise CLIP leads.
         val docQuery = filter.wantedField != null || filter.categories.any { it in DOC_CATEGORIES }
@@ -115,7 +273,18 @@ object SearchEngine {
             for ((kw, ids) in keywordHits) if (img.mediaId in ids) t += 2f * idf.getValue(kw)
             return t
         }
-        val textHits = inDate.filter { textScore(it) > 0f }
+        // A multi-word request is a CONJUNCTION: "red bicycle" means both words, not either. keywordHits
+        // is one id-set per word, and taking every photo with textScore > 0 unioned them - "red bicycle"
+        // returned 53 photos (39 "red" + 14 "bicycle") when only 4 photos actually had both. Keep the
+        // photos covering the most query words, and fall back only when nothing covers more.
+        val matchedKw = keywordHits.filterValues { it.isNotEmpty() }
+        fun coverage(img: IndexedImage) = matchedKw.count { (_, ids) -> img.mediaId in ids }
+        val requiredCoverage = when {
+            matchedKw.size >= 2 -> inDate.maxOfOrNull { coverage(it) } ?: 1
+            matchedKw.size == 1 -> 1   // one real word matched: a bare category hit is not evidence
+            else -> 0                  // nothing matched by word: category-only queries still work
+        }
+        val textHits = inDate.filter { textScore(it) > 0f && coverage(it) >= requiredCoverage }
 
         val keep: List<IndexedImage> = when {
             // 1) Documents found by text: stay inside the category, then narrow by a rare name if one matched
@@ -126,20 +295,32 @@ object SearchEngine {
                 if (rare != null) pool.filter { it.mediaId in rare }.takeIf { it.isNotEmpty() }?.let { pool = it }
                 pool
             }
-            // 2) Content query where Gemma's tags/description agree: those photos, plus any CLIP-only photo
-            //    that looks MORE like the query than the best tag match does.
+            // 2) Content query where Gemma's tags/description agree.
+            //
+            //    When every word of a multi-word request was found together on real photos ("red bicycle"
+            //    -> 4 photos carrying BOTH words), that IS the answer: adding anything CLIP merely likes
+            //    put a red motorcycle in the results. So a full conjunction returns the text matches alone.
+            //
+            //    Otherwise CLIP may add a photo it likes MORE than the best confirmed match. Tested the
+            //    looser per-query 2.5-sigma bar instead: "a dog" went 5 -> 13 and the 8 additions were
+            //    sheep, a cow, a fox, a teddy bear, a goose, a rabbit, another cow and a cat. On this
+            //    library CLIP ranks "animal" above "dog", so this strict bar stays.
             textHits.isNotEmpty() -> {
-                val bar = textHits.maxOf { adj?.get(it.mediaId) ?: Float.NEGATIVE_INFINITY }
-                textHits + inDate.filter {
-                    val a = adj?.get(it.mediaId) ?: Float.NEGATIVE_INFINITY
-                    it !in textHits && a > bar && a >= ADJ_STRICT
+                val fullConjunction = matchedKw.size >= 2 && requiredCoverage >= matchedKw.size
+                if (fullConjunction) textHits else {
+                    val bar = maxOf(adjStrict, textHits.maxOf { adj?.get(it.mediaId) ?: Float.NEGATIVE_INFINITY })
+                    textHits + inDate.filter {
+                        val a = adj?.get(it.mediaId) ?: Float.NEGATIVE_INFINITY
+                        it !in textHits && a > bar
+                    }
                 }
             }
             // 3) Nothing in the text agrees: only a clearly strong CLIP match counts. Otherwise say "no match"
             //    instead of showing the closest-but-wrong photos (e.g. "sunset at the beach" with no sunsets).
             adj != null -> {
                 val top = inDate.maxOfOrNull { adj[it.mediaId] ?: Float.NEGATIVE_INFINITY } ?: Float.NEGATIVE_INFINITY
-                inDate.filter { (adj[it.mediaId] ?: Float.NEGATIVE_INFINITY).let { a -> a >= ADJ_STRICT && a >= top - ADJ_GAP } }
+                val bar = maxOf(adjStrict, ADJ_ABSENT_BAR)
+                inDate.filter { (adj[it.mediaId] ?: Float.NEGATIVE_INFINITY).let { a -> a >= bar && a >= top - ADJ_GAP } }
             }
             // 4) Pure date question ("photos from this week"): everything in range. Else nothing understood.
             hasDate && filter.keywords.isEmpty() && filter.categories.isEmpty() -> inDate
@@ -152,14 +333,18 @@ object SearchEngine {
             if (filter.wantedField != null && img.fields[filter.wantedField] != null) score += 1
             img to score
         }
+        // A bare category with no keywords ("person") is a browse, not a search: returning all 257 photos
+        // buries the good ones. Keep the best by score, which is CLIP-led once the text signal is flat.
+        val isBrowse = filter.keywords.isEmpty() && filter.wantedField == null && filter.categories.isNotEmpty()
         val ranked = scored
             .sortedWith(compareByDescending<Pair<IndexedImage, Float>> { it.second }.thenByDescending { it.first.dateTaken })
             .map { it.first }
+            .let { if (isBrowse && it.size > MAX_BROWSE) it.take(MAX_BROWSE) else it }
 
         if (adj != null) {
             val top = adj.entries.sortedByDescending { it.value }.take(5)
                 .joinToString { e -> "%.3f/%.3f".format(e.value, sims?.get(e.key) ?: 0f) + "(" + all.firstOrNull { it.mediaId == e.key }?.name + ")" }
-            Log.i(TAG, "\"$query\" visual adj/raw strict=$ADJ_STRICT top: $top")
+            Log.i(TAG, "\"$query\" visual adj/raw strict=%.3f".format(adjStrict) + " top: $top")
         }
         Log.i(
             TAG,
@@ -186,7 +371,15 @@ object SearchEngine {
         )
     }
 
-    private class Visual(val raw: Map<Long, Float>, val adjusted: Map<Long, Float>)
+    private class Visual(val raw: Map<Long, Float>, val adjusted: Map<Long, Float>, val strict: Float)
+
+    /** This query own bar for a CLIP-only match: Z_STRICT SDs above its mean, never below ADJ_FLOOR. */
+    private fun strictCut(values: Collection<Float>): Float {
+        if (values.isEmpty()) return ADJ_FLOOR
+        val mean = values.map { it.toDouble() }.average()
+        val sd = sqrt(values.sumOf { (it - mean) * (it - mean) } / values.size)
+        return maxOf(ADJ_FLOOR, (mean + Z_STRICT * sd).toFloat())
+    }
 
     /**
      * CLIP similarity per photo (raw, and relative to the photo's own baseline), or null when there's
@@ -222,7 +415,7 @@ object SearchEngine {
             val adjusted = embeddings.mapValues { (id, v) ->
                 raw.getValue(id) - bank.map { b -> Clip.dot(b, v) }.average().toFloat()
             }
-            Visual(raw, adjusted)
+            Visual(raw, adjusted, strictCut(adjusted.values))
         } catch (t: Throwable) {
             Log.w(TAG, "Visual search unavailable", t)
             null
@@ -370,6 +563,9 @@ object RuleParser {
             .trim(' ', '?', '.', '!')
 
     fun isCategoryWord(word: String): Boolean = word in CATEGORY_WORDS
+
+    /** Categories a query word stands for ("food" -> food, "selfie" -> person), empty if none. */
+    fun categoriesFor(word: String): Set<String> = CATEGORY_WORDS[word].orEmpty()
 
     fun tokens(s: String): List<String> =
         s.lowercase().split(Regex("[^a-z0-9]+")).filter { it.isNotBlank() }

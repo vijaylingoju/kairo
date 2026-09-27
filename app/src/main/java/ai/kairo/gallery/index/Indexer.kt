@@ -228,6 +228,9 @@ object Indexer {
             val tags = json?.optJSONArray("tags")?.let { arr ->
                 (0 until arr.length()).map { arr.optString(it).lowercase().trim() }.filter { it.isNotEmpty() }
             } ?: emptyList()
+            val objects = json?.optJSONArray("objects")?.let { arr ->
+                (0 until arr.length()).map { arr.optString(it).lowercase().trim() }.filter { it.isNotEmpty() }
+            } ?: emptyList()
             val description = json?.optString("description")?.takeIf { it.isNotBlank() }
                 ?: ocr.lineSequence().firstOrNull { it.isNotBlank() }?.take(120)
                 ?: category.replace('_', ' ')
@@ -249,6 +252,7 @@ object Indexer {
                 status = if (json != null) "done" else "ocr_only",
                 error = llmError,
                 indexMs = SystemClock.elapsedRealtime() - t0,
+                objects = objects,
             )
         } catch (t: Throwable) {
             Log.e(TAG, "Indexing failed for ${item.name}", t)
@@ -266,7 +270,7 @@ object Indexer {
     private fun isScreenshot(item: MediaItem): Boolean =
         item.name.startsWith("Screenshot", ignoreCase = true) || "Screenshots" in item.folder
 
-    private fun decode(ctx: Context, uri: Uri, maxSide: Int): Bitmap {
+    internal fun decode(ctx: Context, uri: Uri, maxSide: Int): Bitmap {
         val source = ImageDecoder.createSource(ctx.contentResolver, uri)
         return ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
             val w = info.size.width
@@ -277,14 +281,14 @@ object Indexer {
         }
     }
 
-    private fun scaleDown(bmp: Bitmap, maxSide: Int): Bitmap {
+    internal fun scaleDown(bmp: Bitmap, maxSide: Int): Bitmap {
         val longest = max(bmp.width, bmp.height)
         if (longest <= maxSide) return bmp
         val scale = maxSide.toFloat() / longest
         return Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt(), (bmp.height * scale).toInt(), true)
     }
 
-    private fun toJpeg(bmp: Bitmap): ByteArray {
+    internal fun toJpeg(bmp: Bitmap): ByteArray {
         val out = ByteArrayOutputStream()
         bmp.compress(Bitmap.CompressFormat.JPEG, 90, out)
         return out.toByteArray()
