@@ -1,6 +1,6 @@
 package ai.kairo.gallery.assistant.ball
 
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -37,12 +37,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import ai.kairo.gallery.R
 import ai.kairo.gallery.assistant.AssistantReply
 import ai.kairo.gallery.assistant.AssistantSession
 import ai.kairo.gallery.assistant.ui.InputBar
@@ -55,7 +53,6 @@ import ai.kairo.gallery.ui.OpenRequest
 import ai.kairo.gallery.ui.gallery.AiSparkle
 import ai.kairo.gallery.ui.gallery.AiThinking
 import ai.kairo.gallery.ui.gallery.Kairo
-import ai.kairo.gallery.ui.gallery.star
 import kotlinx.coroutines.delay
 
 private val THINKING = listOf("Understanding your request…", "Working on this phone…", "Almost there…")
@@ -65,21 +62,16 @@ private val WAKING = listOf("Waking up Kairo…", "Loading the AI on this phone�
 private const val DONE_CLOSE_MS = 3_500L
 
 /**
- * The ball itself: the Kairo sparkle on a dark disc with the AI-gradient ring.
+ * The ball itself: the orb from the app icon, so the ball and the launcher icon look the same.
  * Deliberately static (not [AiSparkle]): it's on screen all day, and an animation would redraw every frame.
  */
 @Composable
 internal fun BallFace() {
-    val c = Kairo.colors
-    Box(Modifier.fillMaxSize().padding(5.dp).shadow(6.dp, CircleShape).clip(CircleShape).background(Color(0xE6181A1F))) {
-        Canvas(Modifier.fillMaxSize()) {
-            val w = size.width
-            val ring = 2.dp.toPx()
-            drawCircle(Brush.sweepGradient(c.ai, center), radius = w / 2 - ring / 2, style = Stroke(ring))
-            drawPath(star(Offset(w * 0.46f, w * 0.54f), w * 0.27f), Brush.linearGradient(c.ai.take(3), Offset.Zero, Offset(w, w)))
-            drawPath(star(Offset(w * 0.69f, w * 0.31f), w * 0.11f), Brush.linearGradient(c.ai.drop(2).take(2), Offset.Zero, Offset(w, w)))
-        }
-    }
+    Image(
+        painterResource(R.drawable.kairo_ball),
+        contentDescription = null,  // the ComposeView already says "Ask Kairo"
+        modifier = Modifier.fillMaxSize().padding(5.dp).shadow(6.dp, CircleShape).clip(CircleShape),
+    )
 }
 
 /**

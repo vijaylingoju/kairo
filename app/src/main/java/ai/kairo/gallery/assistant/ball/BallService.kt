@@ -20,6 +20,7 @@ import android.view.WindowInsets
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.Toast
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.app.NotificationCompat
 import androidx.core.net.toUri
@@ -40,6 +41,7 @@ import ai.kairo.gallery.llm.Llm
 import ai.kairo.gallery.ui.AppNavigation
 import ai.kairo.gallery.ui.OpenRequest
 import ai.kairo.gallery.ui.gallery.KairoTheme
+import ai.kairo.gallery.ui.gallery.LocalSoftwareImages
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -225,7 +227,12 @@ class BallService : Service() {
         }
         val root = BackToClose(this) { closeDialog() }
         root.addView(ComposeView(this).apply {
-            setContent { KairoTheme { BallDialog(onClose = ::closeDialog, onOpen = ::openApp) } }
+            setContent {
+                // An overlay window can be drawn in software, which can't draw hardware bitmaps.
+                CompositionLocalProvider(LocalSoftwareImages provides true) {
+                    KairoTheme { BallDialog(onClose = ::closeDialog, onOpen = ::openApp) }
+                }
+            }
         })
         owner.attach(root)
         wm.addView(root, params)
@@ -327,7 +334,7 @@ class BallService : Service() {
          */
         fun askPermission(context: Context) {
             context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, "package:${context.packageName}".toUri()))
-            Toast.makeText(context, "Find “Kairo Gallery” and choose Allow", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Find “Kairo” and choose Allow", Toast.LENGTH_LONG).show()
         }
 
         /** Starts the ball if the user turned it on and allowed it. Call while the app is in front. */

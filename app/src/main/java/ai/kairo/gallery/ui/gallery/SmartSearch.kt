@@ -150,7 +150,7 @@ fun SmartSearchScreen(
     Column(Modifier.fillMaxSize().background(c.background).statusBarsPadding().imePadding()) {
         // Search field with the AI glow (brighter while Kairo is thinking).
         Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { vm.clearSearch(); onBack() }) {
+            IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = c.text)
             }
             val shape = RoundedCornerShape(26.dp)

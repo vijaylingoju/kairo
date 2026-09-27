@@ -385,7 +385,7 @@ class KeywordSettingsAgent(context: Context) : SettingsAgent {
     )
 
     private fun needsPolicyAccess(settingId: String, action: String) = SettingsResponse.NeedsPermission(
-        "I need Do Not Disturb access to change this. Tap Grant, allow Kairo Gallery, then come back and tap Try again.",
+        "I need Do Not Disturb access to change this. Tap Grant, allow Kairo, then come back and tap Try again.",
         IntentSpec(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS),
         settingId,
         action,

@@ -6,8 +6,11 @@ import ai.kairo.gallery.settings.SettingIds
 import ai.kairo.gallery.settings.SettingsKb
 import org.json.JSONObject
 
-/** Which feature answers a request. [UNSURE]: the rules can't tell, so Gemma (or the user) decides. */
-enum class Route { GALLERY, SETTINGS, UNSURE }
+/**
+ * Which feature answers a request. [CHAT]: small talk ("hi", "thanks") that Kairo answers itself.
+ * [UNSURE]: the rules can't tell, so Gemma (or the user) decides.
+ */
+enum class Route { GALLERY, SETTINGS, CHAT, UNSURE }
 
 /**
  * Photos or settings? Rules first (instant); only [Route.UNSURE] needs Gemma ([prompt]).
@@ -20,6 +23,7 @@ enum class Route { GALLERY, SETTINGS, UNSURE }
 object IntentRouter {
 
     fun route(query: String, kb: SettingsKb): Route {
+        if (SmallTalk.kind(query) != null) return Route.CHAT
         val q = SettingsKb.normalize(query)
         val words = q.trim().split(' ').toSet()
         val setting = kb.match(query)
@@ -57,10 +61,11 @@ object IntentRouter {
 Decide which helper on this Android phone should answer the user.
 gallery: finds the user's photos, screenshots and documents (tickets, ID cards, bills, receipts, pets, food, places, people) and reads values from them (PNR, PAN number, seat, amount paid).
 settings: changes phone settings, helps with phone problems (slow, hot, battery, sound, eyes hurt), and answers questions about the phone (storage, battery, updates, screen time).
+chat: greetings, thanks, goodbyes and questions about the assistant itself (hi, thank you, who are you).
 none: only for requests that are neither, like ordering food or the weather.
-A few words naming something that could be in a photo (an animal, object, food, place, person or scene) always mean gallery.
+A few words naming something that could be in a photo (an animal, object, food, place, person or scene) always mean gallery. A greeting is never gallery.
 The user may write in any language. Reply with exactly one JSON object on a single line, no markdown:
-{"route":"gallery"} or {"route":"settings"} or {"route":"none"}
+{"route":"gallery"} or {"route":"settings"} or {"route":"chat"} or {"route":"none"}
 Examples:
 User: golden retriever -> {"route":"gallery"}
 User: beach sunset -> {"route":"gallery"}
@@ -69,6 +74,8 @@ User: hot dog -> {"route":"gallery"}
 User: I'm going into a meeting -> {"route":"settings"}
 User: I can't hear anything in my earphones -> {"route":"settings"}
 User: order me a pizza -> {"route":"none"}
+User: నమస్కారం -> {"route":"chat"}
+User: tell me about yourself -> {"route":"chat"}
 User: $userQuery
 """
 
@@ -76,6 +83,7 @@ User: $userQuery
     fun parse(json: JSONObject): Route? = when (json.optString("route").trim().lowercase()) {
         "gallery" -> Route.GALLERY
         "settings" -> Route.SETTINGS
+        "chat" -> Route.CHAT
         "none" -> Route.UNSURE
         else -> null
     }

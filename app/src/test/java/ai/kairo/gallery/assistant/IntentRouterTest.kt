@@ -30,6 +30,28 @@ class IntentRouterTest {
         "dog photos",
         "where was this photo taken",
         "movie tickets on my phone",
+        "show all images",
+        "all my photos",
+        "good morning images",             // WhatsApp greeting pictures, not a greeting
+    )
+
+    /** Kairo answers these itself; they used to come back as "No photos match". */
+    @Test
+    fun smallTalk() = check(
+        Route.CHAT,
+        "hi",
+        "Hello Kairo!",
+        "hiiii",
+        "good morning",
+        "hi, how are you?",
+        "thanks",
+        "thank you so much",
+        "ok thanks",
+        "bye",
+        "who are you?",
+        "what can you do",
+        "help",
+        "Kairo?",
     )
 
     @Test
@@ -91,6 +113,7 @@ class IntentRouterTest {
     fun parsesGemmaAnswer() {
         assertEquals(Route.GALLERY, IntentRouter.parse(JSONObject("""{"route":"gallery"}""")))
         assertEquals(Route.SETTINGS, IntentRouter.parse(JSONObject("""{"route":" Settings "}""")))
+        assertEquals(Route.CHAT, IntentRouter.parse(JSONObject("""{"route":"chat"}""")))
         assertEquals(Route.UNSURE, IntentRouter.parse(JSONObject("""{"route":"none"}""")))
         assertNull(IntentRouter.parse(JSONObject("""{"route":"weather"}""")))
         assertNull(IntentRouter.parse(JSONObject("""{}""")))

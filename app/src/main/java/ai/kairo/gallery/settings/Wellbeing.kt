@@ -109,7 +109,7 @@ class Wellbeing(private val context: Context) {
     }
 
     private fun needsAccess(settingId: String) = SettingsResponse.NeedsPermission(
-        "To see your screen time I need Usage access. Tap Grant, turn it on for Kairo Gallery, then come back and " +
+        "To see your screen time I need Usage access. Tap Grant, turn it on for Kairo, then come back and " +
             "tap Try again. The data never leaves your phone.",
         IntentSpec(Settings.ACTION_USAGE_ACCESS_SETTINGS, withPackageUri = true),
         settingId,

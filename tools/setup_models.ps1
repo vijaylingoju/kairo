@@ -1,4 +1,4 @@
-# Kairo Gallery - one-command phone setup (Windows PowerShell).
+# Kairo - one-command phone setup (Windows PowerShell).
 # Checks adb + phone + app, then pushes the two AI models and (optionally) test photos, and confirms both models load.
 #
 #   powershell -ExecutionPolicy Bypass -File tools\setup_models.ps1 `

@@ -66,6 +66,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -78,10 +79,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 
 /** Screens inside the user-facing gallery. */
 sealed interface GalleryRoute {
@@ -99,7 +102,12 @@ sealed interface GalleryRoute {
 fun GalleryApp(vm: MainViewModel, hasPerm: Boolean, onGrant: () -> Unit, onOpenDev: () -> Unit) {
     val stack = remember { mutableStateListOf<GalleryRoute>(GalleryRoute.Home) }
     fun push(r: GalleryRoute) { stack.add(r) }
-    fun pop() { if (stack.size > 1) stack.removeAt(stack.lastIndex) }
+    fun pop() {
+        if (stack.size <= 1) return
+        // Leaving search by the arrow or the system back alike: the next search starts empty. The result lives in
+        // the ViewModel so that it survives a trip to the photo viewer, not so that it outlives the screen.
+        if (stack.removeAt(stack.lastIndex) is GalleryRoute.Search) vm.clearSearch()
+    }
     BackHandler(enabled = stack.size > 1) { pop() }
 
     // Out here, not in HomeScreen: coming back from a photo, album or search keeps the tab the user was on.
@@ -112,7 +120,7 @@ fun GalleryApp(vm: MainViewModel, hasPerm: Boolean, onGrant: () -> Unit, onOpenD
     LaunchedEffect(request) {
         val r = request ?: return@LaunchedEffect
         AppNavigation.pending.value = null
-        while (stack.size > 1) stack.removeAt(stack.lastIndex)
+        while (stack.size > 1) pop()
         tab = TAB_KAIRO
         when (r) {
             OpenRequest.KairoTab -> Unit
@@ -291,6 +299,18 @@ private fun PhotosGrid(photos: List<IndexedImage>, onOpenPhoto: (List<IndexedIma
     }
 }
 
+/**
+ * True inside the floating ball's overlay window. Android may draw that window in software (it did while the
+ * dialog closed for "See all"), and software drawing can't draw hardware bitmaps: the app crashed.
+ */
+val LocalSoftwareImages = staticCompositionLocalOf { false }
+
+/** What to hand Coil for a photo: its uri, or a request for a software bitmap where [LocalSoftwareImages] says so. */
+@Composable
+fun photoModel(uri: String): Any =
+    if (LocalSoftwareImages.current) ImageRequest.Builder(LocalContext.current).data(Uri.parse(uri)).allowHardware(false).build()
+    else Uri.parse(uri)
+
 /** Square thumbnail. A tiny sparkle marks photos Kairo is still reading. */
 @Composable
 fun Thumb(p: IndexedImage, corner: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
@@ -302,7 +322,7 @@ fun Thumb(p: IndexedImage, corner: androidx.compose.ui.unit.Dp, onClick: () -> U
             .clickable(onClick = onClick),
     ) {
         AsyncImage(
-            model = Uri.parse(p.uri), contentDescription = p.description,
+            model = photoModel(p.uri), contentDescription = p.description,
             contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
         )
         if (p.status == "pending") {
