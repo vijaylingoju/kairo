@@ -48,6 +48,7 @@ import ai.kairo.gallery.settings.SettingsResponse
 import ai.kairo.gallery.ui.gallery.AnswerCard
 import ai.kairo.gallery.ui.gallery.Kairo
 import ai.kairo.gallery.ui.gallery.Thumb
+import ai.kairo.gallery.ui.gallery.photoModel
 import coil.compose.AsyncImage
 
 /** Thumbnails shown in a photo reply; "See all" opens the rest in the gallery's search screen. */
@@ -81,6 +82,7 @@ fun ReplyCard(
             when (reply) {
                 is AssistantReply.Photos -> PhotosReply(reply, onOpenPhotos, onOpenPhoto)
                 is AssistantReply.Settings -> SettingsReply(reply.response, session, onLaunch)
+                is AssistantReply.Chat -> Text(reply.text)
                 is AssistantReply.AskWhich -> {
                     Text(reply.text)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -174,7 +176,7 @@ private fun SettingsReply(r: SettingsResponse, session: AssistantSession, onLaun
                 r.photoUris.forEach { uri ->
                     // Phone-shaped, so the user sees roughly what the screen will show.
                     AsyncImage(
-                        model = Uri.parse(uri),
+                        model = photoModel(uri),
                         contentDescription = "Use this photo as wallpaper",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier

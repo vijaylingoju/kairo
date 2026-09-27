@@ -31,6 +31,9 @@ sealed interface AssistantReply {
         override val text: String get() = response.text
     }
 
+    /** Small talk ("hi", "thanks", "who are you"), answered without searching anything. */
+    data class Chat(override val text: String) : AssistantReply
+
     /** Neither the rules nor Gemma could tell: the user picks with two buttons. */
     data class AskWhich(val query: String) : AssistantReply {
         override val text: String get() = "I can search your photos or help with your phone's settings. Which one?"
@@ -49,7 +52,9 @@ class KairoAssistant(context: Context) {
     // Generation can't be interrupted, so it runs here and we stop *waiting* for it on timeout.
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    suspend fun handle(query: String): AssistantReply {
+    suspend fun handle(message: String): AssistantReply {
+        // "hi Kairo, show all images": the greeting isn't part of what to look for.
+        val query = SmallTalk.withoutGreeting(message)
         val rules = IntentRouter.route(query, settings.kb)
         if (rules != Route.UNSURE) {
             Log.i(TAG, "\"$query\" → $rules (rules)")
@@ -62,6 +67,7 @@ class KairoAssistant(context: Context) {
     suspend fun answer(query: String, route: Route): AssistantReply = when (route) {
         Route.GALLERY -> AssistantReply.Photos(SearchEngine.search(app, query))
         Route.SETTINGS -> AssistantReply.Settings(settings.handle(query))
+        Route.CHAT -> AssistantReply.Chat(SmallTalk.reply(query))
         Route.UNSURE -> AssistantReply.AskWhich(query)
     }
 

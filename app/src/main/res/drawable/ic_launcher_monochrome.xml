@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Kairo themed icon (Android 13+): the "Q" from the orb, as a single-colour glyph inside the 66dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Ring, open at the lower right where the tail passes through -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="7"
+        android:pathData="M59.1,69.69A16.5,16.5 0 1,1 67.99,62.74" />
+    <!-- Tail -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5.6"
+        android:pathData="M53.58,55.79L69.2,72.46" />
+</vector>

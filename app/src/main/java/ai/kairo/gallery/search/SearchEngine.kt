@@ -101,6 +101,7 @@ object SearchEngine {
      * Documents, fields, category browses and date questions skip all this: text and regex are exact there.
      */
     suspend fun search(ctx: Context, query: String, useLlm: Boolean = true): SearchResult {
+        if (RuleParser.isShowAll(query)) return everything(ctx, query)
         val fast = searchOnce(ctx, query, useLlm = false)
         if (isContentQuery(fast)) phraseSearch(ctx, fast, query)?.let { return it }
 
@@ -110,6 +111,17 @@ object SearchEngine {
             phraseSearch(ctx, base, base.filter.visual ?: base.filter.keywords.joinToString(" "))?.let { return it }
         }
         return if (useLlm && Llm.isReady() && isContentQuery(base)) verified(ctx, base) else base
+    }
+
+    /**
+     * "show all images": every word is a stopword, so the filter came out empty and matched nothing. There is
+     * nothing to filter or rank, just the whole gallery, newest first.
+     */
+    private suspend fun everything(ctx: Context, query: String): SearchResult = withContext(Dispatchers.IO) {
+        val t0 = SystemClock.elapsedRealtime()
+        val items = IndexDb.get(ctx).all().sortedByDescending { it.dateTaken }
+        val none = Filter(emptySet(), emptyList(), wantedField = null, dateFromMs = null, dateToMs = null, usedLlm = false)
+        SearchResult(query, none, items, answer = null, tookMs = SystemClock.elapsedRealtime() - t0)
     }
 
     /** "red bicycle", "a hippo", "iqoo hackathon" - not a document, a field, a bare category or a date. */
@@ -561,6 +573,24 @@ object RuleParser {
             .replace(LEADING_ASK, "")
             .replace(TRAILING_NOUN, "")
             .trim(' ', '?', '.', '!')
+
+    private val ALL_NOUNS = setOf(
+        "photo", "photos", "image", "images", "picture", "pictures", "pic", "pics", "gallery",
+    )
+    private val ALL_FILLER = setOf(
+        "show", "me", "all", "my", "the", "every", "everything", "entire", "whole", "please", "see", "view", "open",
+        "display", "list", "find", "get", "give", "can", "could", "you", "i", "want", "to", "let", "of", "in", "your",
+        "kairo", "saved",
+    )
+
+    /**
+     * "show all images", "all my photos", "open my gallery": the whole gallery. Needs a photo noun and nothing
+     * else but filler, so "all images from today" or "all screenshots" still filter as usual.
+     */
+    fun isShowAll(query: String): Boolean {
+        val toks = tokens(query)
+        return toks.any { it in ALL_NOUNS } && toks.all { it in ALL_NOUNS || it in ALL_FILLER }
+    }
 
     fun isCategoryWord(word: String): Boolean = word in CATEGORY_WORDS
 

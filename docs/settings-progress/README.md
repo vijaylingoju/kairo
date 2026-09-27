@@ -36,7 +36,7 @@ The assistant then changes the setting, opens the right system panel, or shows s
 
 ## How to open it
 
-Launch **Kairo Gallery** and tap the **Kairo** tab (bottom right, next to Photos and Albums).
+Launch **Kairo** and tap the **Kairo** tab (bottom right, next to Photos and Albums).
 
 ```bash
 adb shell am start -n ai.kairo.gallery/.ui.MainActivity

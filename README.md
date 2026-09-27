@@ -1,4 +1,4 @@
-# Kairo Gallery: on-device AI gallery search
+# Kairo: on-device AI gallery search
 
 Ask your gallery in plain words: "my PAN number", "movie tickets", "golden retriever", "సినిమా టికెట్లు".
 Everything runs **on the phone**: Gemma 4 (LiteRT-LM) + CLIP (LiteRT) + ML Kit OCR. The app has **no internet permission**.

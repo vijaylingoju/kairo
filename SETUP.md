@@ -1,6 +1,6 @@
-# Kairo Gallery: setup on a new laptop and phone
+# Kairo: setup on a new laptop and phone
 
-This guide takes you from a fresh Windows laptop and an Android phone to a working Kairo Gallery with on-device AI search.
+This guide takes you from a fresh Windows laptop and an Android phone to a working Kairo with on-device AI search.
 Allow **about 30–45 minutes**, most of it downloads.
 
 > **TL;DR** (if you already have Android Studio and the two model files):
@@ -187,7 +187,7 @@ Then force-stop and reopen the app.
 
 ## 7. First run on the phone
 
-1. Open **Kairo Gallery**. The top status lines should read:
+1. Open **Kairo**. The top status lines should read:
    - `gemma-4-E4B-it ready on GPU (loaded in … ms)`
    - `CLIP ready: images on NPU, text on GPU+CPU` (it says `–` for a part until it's first used)
 2. Tap **Grant photo access** → choose **Allow all**. Don't pick "Select photos", or new photos won't be seen.
@@ -198,7 +198,7 @@ Then force-stop and reopen the app.
    - Pass 1, **"Visual index"**: about 0.1–0.3 s per photo. Photos are searchable straight away.
    - Pass 2, **"Indexing"**: Gemma reads each photo, about 5 s for a normal photo and 7–12 s for a ticket or document. Labels change from "reading…" to a category.
 5. **Keep the screen on** during the first indexing, and allow background activity:
-   Settings → Apps → Kairo Gallery → Battery → **Allow background activity** / **No restrictions**.
+   Settings → Apps → Kairo → Battery → **Allow background activity** / **No restrictions**.
    Android freezes apps when the screen is off, which pauses indexing.
 6. Optional: turn on **"Also index new screenshots"**.
 
