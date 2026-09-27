@@ -40,6 +40,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -53,13 +54,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import ai.kairo.gallery.assistant.AssistantSession
+import ai.kairo.gallery.assistant.ball.BallService
+import ai.kairo.gallery.data.Prefs
 import ai.kairo.gallery.data.IndexedImage
 import ai.kairo.gallery.search.SearchResult
 import ai.kairo.gallery.ui.gallery.AiSparkle
@@ -67,6 +75,7 @@ import ai.kairo.gallery.ui.gallery.AiThinking
 import ai.kairo.gallery.ui.gallery.Kairo
 import ai.kairo.gallery.ui.gallery.MicIcon
 import ai.kairo.gallery.ui.gallery.aiGlow
+import kotlinx.coroutines.delay
 
 private val EXAMPLES = listOf(
     "My PAN number",
@@ -104,8 +113,12 @@ fun AssistantChat(
     val listState = rememberLazyListState()
     val c = Kairo.colors
 
-    LaunchedEffect(Unit) {
-        session.launchRequests.collect { context.launch(it) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(lifecycle) {
+        // Only while the tab is on screen; otherwise the floating ball's dialog opens it.
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            session.launchRequests.collect { context.launch(it) }
+        }
     }
     LaunchedEffect(messages.size, busy) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(0)
@@ -187,8 +200,10 @@ private fun EmptyState(onExample: (String) -> Unit) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = c.textSecondary,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 6.dp, bottom = 20.dp),
+                modifier = Modifier.padding(top = 6.dp, bottom = 16.dp),
             )
+            BallSwitch()
+            Spacer(Modifier.height(20.dp))
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -206,8 +221,41 @@ private fun EmptyState(onExample: (String) -> Unit) {
     }
 }
 
+/** Turns the floating ball on or off. The first time, Android asks for "Display over other apps". */
 @Composable
-private fun UserBubble(text: String) {
+private fun BallSwitch() {
+    val context = LocalContext.current
+    val c = Kairo.colors
+    val running by BallService.running.collectAsState()
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface)
+            .padding(start = 16.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Ask Kairo from any app", style = MaterialTheme.typography.titleMedium, color = c.text)
+            Text(
+                if (running) "On. The ball shows when you leave Kairo." else "A floating ball over your other apps",
+                style = MaterialTheme.typography.bodySmall, color = c.textSecondary,
+            )
+        }
+        Switch(
+            checked = running,
+            onCheckedChange = { on ->
+                Prefs.setBallEnabled(context, on)
+                when {
+                    !on -> BallService.stop(context)
+                    BallService.canShow(context) -> BallService.startIfEnabled(context)
+                    // Back in the app, MainActivity starts the ball once it's allowed.
+                    else -> BallService.askPermission(context)
+                }
+            },
+        )
+    }
+}
+
+@Composable
+internal fun UserBubble(text: String) {
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
         Text(
             text,
@@ -221,19 +269,35 @@ private fun UserBubble(text: String) {
     }
 }
 
-/** Same pill as the gallery's search box; it glows while Kairo is answering. */
+/**
+ * Same pill as the gallery's search box; it glows while Kairo is answering. No mic when [onMic] is null.
+ * [autoFocus]: the keyboard comes up straight away (the floating ball's dialog).
+ */
 @Composable
-private fun InputBar(busy: Boolean, onSend: (String) -> Unit, onMic: () -> Unit) {
+internal fun InputBar(
+    busy: Boolean,
+    onSend: (String) -> Unit,
+    onMic: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    autoFocus: Boolean = false,
+) {
     val c = Kairo.colors
     var text by rememberSaveable { mutableStateOf("") }
+    val focus = remember { FocusRequester() }
     fun send() {
         if (text.isBlank() || busy) return
         onSend(text)
         text = ""
     }
+    if (autoFocus) {
+        LaunchedEffect(Unit) {
+            delay(150)  // a new overlay window needs a moment to get input focus
+            focus.requestFocus()
+        }
+    }
     val shape = RoundedCornerShape(26.dp)
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
             .heightIn(min = 52.dp)
@@ -255,11 +319,11 @@ private fun InputBar(busy: Boolean, onSend: (String) -> Unit, onMic: () -> Unit)
                 cursorBrush = SolidColor(c.accent),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = { send() }),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().focusRequester(focus),
             )
         }
         if (text.isBlank()) {
-            IconButton(onClick = onMic, enabled = !busy) { MicIcon(c.accent, size = 22.dp) }
+            if (onMic != null) IconButton(onClick = onMic, enabled = !busy) { MicIcon(c.accent, size = 22.dp) }
         } else {
             IconButton(onClick = { send() }, enabled = !busy) {
                 Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = c.accent)

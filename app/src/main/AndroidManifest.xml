@@ -30,6 +30,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
+    <!-- Floating ball over other apps: "Display over other apps", granted by the user on a system screen, and a
+         foreground service to keep the ball alive (Android stops ordinary background services within a minute). -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
     <!-- Settings assistant: brightness, font size... Granted by the user on a system screen. -->
     <uses-permission
         android:name="android.permission.WRITE_SETTINGS"
@@ -88,6 +93,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Floating ball. No standard foreground-service type fits an assistant overlay, hence specialUse. -->
+        <service
+            android:name=".assistant.ball.BallService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="On-device assistant shown as a floating button over other apps" />
+        </service>
 
         <!-- WorkManager foreground service needs a declared type on Android 14+ -->
         <service

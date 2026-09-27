@@ -5,7 +5,9 @@ import ai.kairo.gallery.assistant.ui.ClearChatButton
 import ai.kairo.gallery.data.IndexedImage
 import ai.kairo.gallery.index.Indexer
 import ai.kairo.gallery.search.SearchResult
+import ai.kairo.gallery.ui.AppNavigation
 import ai.kairo.gallery.ui.MainViewModel
+import ai.kairo.gallery.ui.OpenRequest
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -56,6 +58,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -103,6 +106,23 @@ fun GalleryApp(vm: MainViewModel, hasPerm: Boolean, onGrant: () -> Unit, onOpenD
     var tab by rememberSaveable { mutableIntStateOf(TAB_PHOTOS) }
     val photos by vm.allImages.collectAsState()
     val c = Kairo.colors
+
+    // Opened from the floating ball: back from there lands on the Kairo tab, where the conversation is.
+    val request by AppNavigation.pending.collectAsState()
+    LaunchedEffect(request) {
+        val r = request ?: return@LaunchedEffect
+        AppNavigation.pending.value = null
+        while (stack.size > 1) stack.removeAt(stack.lastIndex)
+        tab = TAB_KAIRO
+        when (r) {
+            OpenRequest.KairoTab -> Unit
+            is OpenRequest.Photos -> {
+                vm.showResult(r.result)
+                push(GalleryRoute.Search())
+            }
+            is OpenRequest.Photo -> push(GalleryRoute.Viewer(r.photos, r.start))
+        }
+    }
 
     Box(Modifier.fillMaxSize().background(c.background)) {
         AnimatedContent(

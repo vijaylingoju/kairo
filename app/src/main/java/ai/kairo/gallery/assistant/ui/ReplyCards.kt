@@ -1,5 +1,6 @@
 package ai.kairo.gallery.assistant.ui
 
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -237,6 +238,8 @@ internal fun Context.launch(spec: IntentSpec) {
             val intent = Intent(action).apply {
                 if (withPackage) data = Uri.parse("package:$pkg")
                 spec.targetPackage?.let { putExtra(Intent.EXTRA_PACKAGE_NAME, it) }
+                // From the floating ball (a service) there's no Activity task to open it in.
+                if (this@launch !is Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             try {
                 startActivity(intent)
