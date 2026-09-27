@@ -1,0 +1,613 @@
+{
+  "version": 1,
+  "_notes": [
+    "Hand-curated knowledge base for the Settings Assistant. The agent (keyword or LLM) may only pick an id + action from here.",
+    "tier: direct = Kotlin changes it, panel = a system panel (or the phone's own screen, e.g. vivo's cleaner) opens right away, guide = steps + deep link, info = read-only facts about the phone (the button opens guide.intents).",
+    "actions: the first one is the default when the query has no direction ('flashlight' -> on).",
+    "guide.intents: tried in order until one resolves. All were checked with `pm resolve-activity` on the iQOO (OriginOS 6).",
+    "guide.steps: OriginOS menu labels are NOT verified yet."
+  ],
+  "settings": [
+    {
+      "id": "brightness",
+      "name": "Brightness",
+      "tier": "direct",
+      "synonyms": ["brightness", "bright", "brighter", "dim", "dimmer", "screen too dark", "screen light"],
+      "actions": ["increase", "decrease"],
+      "guide": {
+        "intents": ["android.settings.DISPLAY_SETTINGS"],
+        "steps": ["Open Settings", "Tap Display & brightness", "Drag the brightness slider"]
+      }
+    },
+    {
+      "id": "auto_brightness",
+      "name": "Auto-brightness",
+      "tier": "direct",
+      "synonyms": ["auto brightness", "automatic brightness", "adaptive brightness", "auto adjust brightness"],
+      "actions": ["on", "off"],
+      "guide": {
+        "intents": ["android.settings.DISPLAY_SETTINGS"],
+        "steps": ["Open Settings", "Tap Display & brightness", "Turn Auto-adjust brightness on or off"]
+      }
+    },
+    {
+      "id": "font_size",
+      "name": "Text size",
+      "tier": "direct",
+      "synonyms": ["font", "font size", "text size", "text bigger", "text smaller", "bigger text", "smaller text", "can't read", "cant read", "letters"],
+      "actions": ["increase", "decrease"],
+      "guide": {
+        "intents": ["android.settings.DISPLAY_SETTINGS"],
+        "steps": ["Open Settings", "Tap Display & brightness", "Tap Font size", "Drag the slider"]
+      }
+    },
+    {
+      "id": "screen_timeout",
+      "name": "Screen timeout",
+      "tier": "direct",
+      "synonyms": ["screen timeout", "timeout", "time out", "auto lock", "screen sleep", "sleep time", "screen turns off", "screen goes off", "screen stays on"],
+      "actions": ["increase", "decrease"],
+      "guide": {
+        "intents": ["android.settings.DISPLAY_SETTINGS"],
+        "steps": ["Open Settings", "Tap Display & brightness", "Tap Auto screen off", "Pick a time"]
+      }
+    },
+    {
+      "id": "auto_rotate",
+      "name": "Auto-rotate",
+      "tier": "direct",
+      "synonyms": ["auto rotate", "autorotate", "rotate", "rotation", "screen rotation", "landscape", "portrait lock"],
+      "actions": ["on", "off"],
+      "guide": {
+        "intents": ["android.settings.DISPLAY_SETTINGS"],
+        "steps": ["Swipe down from the top-right corner to open Control Center", "Tap the rotation lock tile"]
+      }
+    },
+    {
+      "id": "media_volume",
+      "name": "Media volume",
+      "tier": "direct",
+      "synonyms": ["volume", "media volume", "music volume", "video volume", "louder", "quieter", "sound level"],
+      "actions": ["increase", "decrease", "off"],
+      "guide": {
+        "intents": ["android.settings.SOUND_SETTINGS"],
+        "steps": ["Press a volume button", "Drag the media slider"]
+      }
+    },
+    {
+      "id": "ring_volume",
+      "name": "Ring volume",
+      "tier": "direct",
+      "synonyms": ["ring volume", "ringer volume", "ringtone volume", "ringtone", "call volume", "ringer"],
+      "actions": ["increase", "decrease"],
+      "guide": {
+        "intents": ["android.settings.SOUND_SETTINGS"],
+        "steps": ["Open Settings", "Tap Sound & vibration", "Drag the Ringtone slider"]
+      }
+    },
+    {
+      "id": "alarm_volume",
+      "name": "Alarm volume",
+      "tier": "direct",
+      "synonyms": ["alarm volume", "alarm sound", "alarm louder", "alarm quieter", "alarm"],
+      "actions": ["increase", "decrease"],
+      "guide": {
+        "intents": ["android.settings.SOUND_SETTINGS"],
+        "steps": ["Open Settings", "Tap Sound & vibration", "Drag the Alarm slider"]
+      }
+    },
+    {
+      "id": "silent_mode",
+      "name": "Silent mode",
+      "tier": "direct",
+      "synonyms": ["silent", "silent mode", "mute phone", "mute my phone", "mute the phone", "mute calls", "no sound", "unmute", "unmute phone"],
+      "actions": ["on", "off"],
+      "guide": {
+        "intents": ["android.settings.SOUND_SETTINGS"],
+        "steps": ["Open Settings", "Tap Sound & vibration", "Turn Silent mode on or off"]
+      }
+    },
+    {
+      "id": "vibrate_mode",
+      "name": "Vibrate mode",
+      "tier": "direct",
+      "synonyms": ["vibrate", "vibrate mode", "vibration mode", "vibrate only"],
+      "actions": ["on", "off"],
+      "guide": {
+        "intents": ["android.settings.SOUND_SETTINGS"],
+        "steps": ["Open Settings", "Tap Sound & vibration", "Choose Vibrate"]
+      }
+    },
+    {
+      "id": "dnd",
+      "name": "Do Not Disturb",
+      "tier": "direct",
+      "synonyms": ["do not disturb", "don't disturb", "dont disturb", "dnd", "focus mode", "no interruptions", "disturb"],
+      "actions": ["on", "off"],
+      "guide": {
+        "intents": ["android.settings.ZEN_MODE_SETTINGS", "android.settings.SOUND_SETTINGS"],
+        "steps": ["Open Settings", "Tap Do not disturb", "Turn it on or off"]
+      }
+    },
+    {
+      "id": "flashlight",
+      "name": "Flashlight",
+      "tier": "direct",
+      "synonyms": ["flashlight", "flash light", "torch", "flash"],
+      "actions": ["on", "off"],
+      "guide": {
+        "intents": [],
+        "steps": ["Swipe down from the top-right corner to open Control Center", "Tap the Flashlight tile"]
+      }
+    },
+    {
+      "id": "touch_sounds",
+      "name": "Touch sounds",
+      "tier": "direct",
+      "synonyms": ["touch sound", "touch sounds", "tap sound", "tap sounds", "click sound", "click sounds", "keypress sound"],
+      "actions": ["off", "on"],
+      "guide": {
+        "intents": ["android.settings.SOUND_SETTINGS"],
+        "steps": ["Open Settings", "Tap Sound & vibration", "Tap More sound settings", "Turn Touch sound on or off"]
+      }
+    },
+    {
+      "id": "wifi",
+      "name": "Wi-Fi",
+      "tier": "panel",
+      "panel": "android.settings.panel.action.WIFI",
+      "synonyms": ["wifi", "wi fi", "wlan", "wireless network"],
+      "actions": ["open", "on", "off"],
+      "note": "Android doesn't let apps switch Wi-Fi themselves, so I'll open the Wi-Fi controls for you.",
+      "guide": {
+        "intents": ["android.settings.WIFI_SETTINGS"],
+        "steps": ["Open Settings", "Tap Wi-Fi", "Turn the switch on or off"]
+      }
+    },
+    {
+      "id": "mobile_data",
+      "name": "Mobile data",
+      "tier": "panel",
+      "panel": "android.settings.panel.action.INTERNET_CONNECTIVITY",
+      "synonyms": ["mobile data", "cellular data", "cellular", "data connection", "4g", "5g", "internet", "no internet", "network"],
+      "actions": ["open", "on", "off"],
+      "note": "Android doesn't let apps switch mobile data, so I'll open the internet controls for you.",
+      "guide": {
+        "intents": ["android.settings.DATA_USAGE_SETTINGS", "android.settings.NETWORK_OPERATOR_SETTINGS"],
+        "steps": ["Open Settings", "Tap Mobile network", "Turn Mobile data on or off"]
+      }
+    },
+    {
+      "id": "nfc",
+      "name": "NFC",
+      "tier": "panel",
+      "panel": "android.settings.panel.action.NFC",
+      "synonyms": ["nfc", "tap to pay", "contactless"],
+      "actions": ["open", "on", "off"],
+      "note": "Android doesn't let apps switch NFC, so I'll open the NFC controls for you.",
+      "guide": {
+        "intents": ["android.settings.NFC_SETTINGS"],
+        "steps": ["Open Settings", "Tap Other networks & connections", "Turn NFC on or off"]
+      }
+    },
+    {
+      "id": "bluetooth",
+      "name": "Bluetooth",
+      "tier": "guide",
+      "synonyms": ["bluetooth", "blue tooth", "bt", "earbuds", "headphones", "pair"],
+      "actions": ["on", "off", "open"],
+      "note": "Android doesn't let apps switch Bluetooth. Here's how:",
+      "guide": {
+        "intents": ["android.settings.BLUETOOTH_SETTINGS"],
+        "steps": ["Open Bluetooth settings", "Turn the Bluetooth switch on or off", "Pick a device to pair"]
+      }
+    },
+    {
+      "id": "dark_mode",
+      "name": "Dark mode",
+      "tier": "guide",
+      "synonyms": ["dark mode", "dark theme", "night mode", "black theme", "light mode", "light theme"],
+      "actions": ["on", "off"],
+      "note": "I can't switch dark mode directly yet. Here's how:",
+      "guide": {
+        "intents": ["android.settings.DARK_THEME_SETTINGS", "android.settings.DISPLAY_SETTINGS"],
+        "steps": ["Open Settings", "Tap Display & brightness", "Tap Dark mode", "Turn it on or off"]
+      }
+    },
+    {
+      "id": "eye_protection",
+      "name": "Eye protection",
+      "tier": "guide",
+      "synonyms": ["eye protection", "eye comfort", "eye care", "night light", "night display", "blue light", "warm screen", "screen warm", "screen warmer", "warmer colors", "warm colors", "reading mode"],
+      "actions": ["on", "off"],
+      "note": "I can't turn on Eye Protection directly yet. Here's how:",
+      "guide": {
+        "intents": ["android.settings.NIGHT_DISPLAY_SETTINGS", "android.settings.DISPLAY_SETTINGS"],
+        "steps": ["Open Settings", "Tap Display & brightness", "Tap Eye protection", "Turn it on (you can also set a schedule)"]
+      }
+    },
+    {
+      "id": "airplane_mode",
+      "name": "Airplane mode",
+      "tier": "guide",
+      "synonyms": ["airplane mode", "aeroplane mode", "flight mode", "airplane", "aeroplane"],
+      "actions": ["on", "off"],
+      "note": "Android doesn't let apps switch airplane mode. Here's how:",
+      "guide": {
+        "intents": ["android.settings.AIRPLANE_MODE_SETTINGS"],
+        "steps": ["Swipe down from the top-right corner to open Control Center", "Tap the Airplane mode tile"]
+      }
+    },
+    {
+      "id": "location",
+      "name": "Location",
+      "tier": "guide",
+      "synonyms": ["location", "gps", "location services", "maps can't find me", "track my location"],
+      "actions": ["on", "off"],
+      "note": "Android doesn't let apps switch location. Here's how:",
+      "guide": {
+        "intents": ["android.settings.LOCATION_SOURCE_SETTINGS"],
+        "steps": ["Open Location settings", "Turn Location on or off"]
+      }
+    },
+    {
+      "id": "battery_saver",
+      "name": "Battery saver",
+      "tier": "guide",
+      "synonyms": ["battery saver", "power saver", "power saving", "save battery", "low power mode", "battery saving"],
+      "actions": ["on", "off"],
+      "note": "Android doesn't let apps switch battery saver. Here's how:",
+      "guide": {
+        "intents": ["android.settings.BATTERY_SAVER_SETTINGS"],
+        "steps": ["Open Settings", "Tap Battery", "Turn Power saving mode on or off"]
+      }
+    },
+    {
+      "id": "app_notifications",
+      "name": "App notifications",
+      "tier": "guide",
+      "synonyms": ["notifications", "notification", "app notifications", "too many notifications", "stop notifications", "block notifications"],
+      "actions": ["open", "off", "on"],
+      "note": "You can choose which apps may notify you. Here's how:",
+      "guide": {
+        "intents": ["android.settings.NOTIFICATION_SETTINGS", "android.settings.ALL_APPS_NOTIFICATION_SETTINGS"],
+        "steps": ["Open Notification settings", "Tap the app you want to change", "Turn Allow notifications off (or on)"]
+      }
+    },
+    {
+      "id": "hotspot",
+      "name": "Hotspot",
+      "tier": "guide",
+      "synonyms": ["hotspot", "hot spot", "tethering", "share internet", "share my internet", "personal hotspot"],
+      "actions": ["on", "off"],
+      "note": "Android doesn't let apps switch the hotspot. Here's how:",
+      "guide": {
+        "intents": ["android.settings.TETHER_SETTINGS", "android.settings.WIRELESS_SETTINGS"],
+        "steps": ["Open Settings", "Tap Personal hotspot", "Turn it on or off"]
+      }
+    },
+    {
+      "id": "wallpaper",
+      "name": "Wallpaper",
+      "tier": "direct",
+      "synonyms": ["wallpaper", "wall paper", "background", "backdrop", "lock screen wallpaper", "home screen wallpaper", "lock screen photo", "lock screen picture", "as my lock screen", "as my home screen", "on my lock screen", "on my home screen"],
+      "actions": ["both", "home", "lock"],
+      "note": "Actions are the screen that gets the photo. The photo itself comes from gallery search.",
+      "guide": {
+        "intents": ["android.intent.action.SET_WALLPAPER"],
+        "steps": ["Long-press an empty spot on the home screen", "Tap Wallpaper", "Pick a photo"]
+      }
+    },
+    {
+      "id": "touch_vibration",
+      "name": "Touch vibration",
+      "tier": "direct",
+      "synonyms": ["touch vibration", "haptic feedback", "haptics", "haptic", "vibrate on touch", "vibration on touch", "tap vibration", "vibration when i tap"],
+      "actions": ["off", "on"],
+      "guide": {
+        "intents": ["android.settings.SOUND_SETTINGS"],
+        "steps": ["Open Settings", "Tap Sound & vibration", "Turn Touch vibration on or off"]
+      }
+    },
+    {
+      "id": "color_inversion",
+      "name": "Color inversion",
+      "tier": "guide",
+      "synonyms": ["invert colors", "invert colours", "color inversion", "colour inversion", "inverted colors", "inverted colours", "negative colors", "reverse colors"],
+      "actions": ["on", "off"],
+      "note": "Android only lets system apps switch color inversion. Here's how:",
+      "guide": {
+        "intents": ["android.settings.COLOR_INVERSION_SETTINGS", "vivo.settings.ACCESSIBILITY_INVERTION_SETTINGS", "android.settings.ACCESSIBILITY_SETTINGS"],
+        "steps": ["Open Color inversion settings", "Turn Use color inversion on or off"]
+      }
+    },
+    {
+      "id": "grayscale",
+      "name": "Grayscale",
+      "tier": "guide",
+      "synonyms": ["grayscale", "greyscale", "gray scale", "grey scale", "black and white", "monochrome", "grey screen", "gray screen"],
+      "actions": ["on", "off"],
+      "note": "Android only lets system apps switch grayscale. It's one of the modes of Color correction. Here's how:",
+      "guide": {
+        "intents": ["com.android.settings.ACCESSIBILITY_COLOR_SPACE_SETTINGS", "android.settings.ACCESSIBILITY_COLOR_MOTION_SETTINGS", "android.settings.ACCESSIBILITY_SETTINGS"],
+        "steps": ["Open Color correction settings", "Turn Use color correction on", "Pick Grayscale"]
+      }
+    },
+    {
+      "id": "color_correction",
+      "name": "Color correction",
+      "tier": "guide",
+      "synonyms": ["color correction", "colour correction", "color blind", "colour blind", "colorblind", "color blindness", "colour blindness", "red green", "deuteranomaly", "protanomaly", "tritanomaly"],
+      "actions": ["on", "off"],
+      "note": "Color correction has a mode for each type of color blindness, so it's best to pick it yourself. Here's how:",
+      "guide": {
+        "intents": ["com.android.settings.ACCESSIBILITY_COLOR_SPACE_SETTINGS", "android.settings.ACCESSIBILITY_COLOR_MOTION_SETTINGS", "android.settings.ACCESSIBILITY_SETTINGS"],
+        "steps": ["Open Color correction settings", "Turn Use color correction on", "Pick the mode that looks right: Red-green, Green-red or Blue-yellow"]
+      }
+    },
+    {
+      "id": "high_contrast_text",
+      "name": "High contrast text",
+      "tier": "guide",
+      "synonyms": ["high contrast text", "high contrast", "contrast text", "text contrast", "more contrast"],
+      "actions": ["on", "off"],
+      "note": "Android only lets system apps switch high contrast text. Here's how:",
+      "guide": {
+        "intents": ["android.settings.TEXT_READING_SETTINGS", "android.settings.ACCESSIBILITY_COLOR_CONTRAST_SETTINGS", "android.settings.ACCESSIBILITY_SETTINGS"],
+        "steps": ["Open Display size and text", "Turn High contrast text on or off"]
+      }
+    },
+    {
+      "id": "bold_text",
+      "name": "Bold text",
+      "tier": "guide",
+      "synonyms": ["bold text", "bold font", "bold letters", "font bold", "text bold", "thicker text", "thicker letters"],
+      "actions": ["on", "off"],
+      "note": "Android only lets system apps switch bold text. Here's how:",
+      "guide": {
+        "intents": ["android.settings.TEXT_READING_SETTINGS", "android.settings.ACCESSIBILITY_SETTINGS"],
+        "steps": ["Open Display size and text", "Turn Bold text on or off"]
+      }
+    },
+    {
+      "id": "extra_dim",
+      "name": "Extra dim",
+      "tier": "guide",
+      "synonyms": ["extra dim", "even darker", "darker than lowest", "dimmer than lowest", "darker than minimum", "reduce bright colors", "reduce bright colours"],
+      "actions": ["on", "off"],
+      "note": "Android only lets system apps switch Extra dim. It makes the screen darker than the lowest brightness. Here's how:",
+      "guide": {
+        "intents": ["android.settings.REDUCE_BRIGHT_COLORS_SETTINGS", "android.settings.ACCESSIBILITY_SETTINGS"],
+        "steps": ["Open Extra dim settings", "Turn Use Extra dim on", "Drag the Intensity slider"]
+      }
+    },
+    {
+      "id": "animations",
+      "name": "Animations",
+      "tier": "guide",
+      "synonyms": ["animations", "animation", "remove animations", "reduce motion", "less motion", "motion sickness"],
+      "actions": ["off", "on"],
+      "note": "Android only lets system apps switch animations off. Here's how:",
+      "guide": {
+        "intents": ["android.settings.ACCESSIBILITY_COLOR_MOTION_SETTINGS", "android.settings.ACCESSIBILITY_SETTINGS"],
+        "steps": ["Open Color and motion", "Turn Remove animations on (or off to bring them back)"]
+      }
+    },
+    {
+      "id": "display_size",
+      "name": "Display size",
+      "tier": "guide",
+      "synonyms": ["display size", "screen size", "everything bigger", "everything smaller", "bigger icons", "icons bigger", "smaller icons", "icons smaller", "icon size", "buttons bigger", "bigger buttons"],
+      "actions": ["increase", "decrease"],
+      "note": "Android only lets system apps change the display size. It makes icons and buttons bigger, not just text. Here's how:",
+      "guide": {
+        "intents": ["android.settings.TEXT_READING_SETTINGS", "android.settings.DISPLAY_SETTINGS"],
+        "steps": ["Open Display size and text", "Drag the Display size slider"]
+      }
+    },
+    {
+      "id": "magnification",
+      "name": "Magnification",
+      "tier": "guide",
+      "synonyms": ["magnification", "magnifier", "magnify", "zoom in on the screen", "zoom into the screen", "zoom the screen", "screen zoom", "enlarge the screen"],
+      "actions": ["on", "off"],
+      "note": "Magnification lets you zoom into any part of the screen. Here's how to turn it on:",
+      "guide": {
+        "intents": ["android.settings.MAGNIFICATION_SETTINGS", "vivo.settings.ACCESSIBILITY_MAGNIFICATION_SETTINGS", "android.settings.ACCESSIBILITY_SETTINGS"],
+        "steps": ["Open Magnification settings", "Turn on the Magnification shortcut", "Use the shortcut, then drag two fingers to move around and pinch to zoom"]
+      }
+    },
+    {
+      "id": "talkback",
+      "name": "TalkBack",
+      "tier": "guide",
+      "synonyms": ["talkback", "talk back", "screen reader", "read the screen", "read my screen", "read aloud", "read out loud", "spoken feedback"],
+      "actions": ["on", "off"],
+      "note": "TalkBack changes how touch works (you double-tap to open things), so I won't switch it on for you. Here's how:",
+      "guide": {
+        "intents": ["android.settings.ACCESSIBILITY_SETTINGS"],
+        "steps": ["Open Accessibility settings", "Tap TalkBack", "Turn on Use TalkBack", "To turn it off later: tap the switch once, then double-tap it"]
+      }
+    },
+    {
+      "id": "captions",
+      "name": "Captions",
+      "tier": "guide",
+      "synonyms": ["captions", "caption", "subtitles", "subtitle", "live caption", "closed captions"],
+      "actions": ["on", "off"],
+      "note": "Here's how to turn on captions:",
+      "guide": {
+        "intents": ["android.settings.CAPTIONING_SETTINGS", "android.settings.ACCESSIBILITY_SETTINGS"],
+        "steps": ["Open Caption preferences", "Turn Show captions on", "Pick the text size and style"]
+      }
+    },
+    {
+      "id": "hearing_aids",
+      "name": "Hearing aids",
+      "tier": "guide",
+      "synonyms": ["hearing aid", "hearing aids", "hearing device", "hearing devices"],
+      "actions": ["open"],
+      "note": "Here's how to connect a hearing aid:",
+      "guide": {
+        "intents": ["android.settings.HEARING_DEVICES_SETTINGS", "android.settings.ACCESSIBILITY_SETTINGS"],
+        "steps": ["Open Hearing devices", "Tap Pair new device", "Pick your hearing aid"]
+      }
+    },
+    {
+      "id": "device_info",
+      "name": "Phone info",
+      "tier": "info",
+      "synonyms": ["about phone", "about my phone", "phone info", "phone information", "device info", "device information", "phone details", "phone specs", "specs", "specifications", "android version", "which android", "what android", "os version", "originos version", "build number", "model number", "phone model", "which phone", "what phone", "processor", "chipset", "cpu", "ram", "memory", "kernel", "uptime", "up time"],
+      "actions": ["show"],
+      "guide": {
+        "intents": ["android.settings.DEVICE_INFO_SETTINGS"],
+        "steps": ["Open Settings", "Tap About phone"]
+      }
+    },
+    {
+      "id": "storage_info",
+      "name": "Storage",
+      "tier": "info",
+      "synonyms": ["storage", "space", "free space", "storage space", "storage full", "phone storage", "internal storage", "memory full", "memory is full", "out of space", "disk space"],
+      "actions": ["show"],
+      "guide": {
+        "intents": ["com.iqoo.secure.action.SPACE_MANAGER", "android.settings.INTERNAL_STORAGE_SETTINGS", "android.os.storage.action.MANAGE_STORAGE"],
+        "steps": ["Open Settings", "Tap Storage", "Tap Clean up or Free up space"]
+      }
+    },
+    {
+      "id": "clean_up",
+      "name": "Cleanup",
+      "tier": "panel",
+      "panel": "com.iqoo.secure.action.SPACE_MANAGER",
+      "synonyms": ["clear cache", "clean cache", "delete cache", "cache", "junk", "junk files", "clean up", "cleanup", "clean my phone", "free up space", "phone cleaner"],
+      "actions": ["open"],
+      "note": "Android doesn't let apps clear other apps' cache, but your phone's own cleaner can. Opening it…",
+      "guide": {
+        "intents": ["android.settings.INTERNAL_STORAGE_SETTINGS", "android.os.storage.action.MANAGE_STORAGE"],
+        "steps": ["Open Settings", "Tap Storage", "Tap Clean up or Free up space"]
+      }
+    },
+    {
+      "id": "close_apps",
+      "name": "Close apps",
+      "tier": "guide",
+      "synonyms": ["close apps", "close all apps", "close my apps", "close background apps", "kill apps", "recent apps", "background apps", "clear ram", "free ram", "free up ram", "clear memory", "free memory", "free up memory"],
+      "actions": ["open"],
+      "note": "Android doesn't let apps close other apps. Here's how:",
+      "guide": {
+        "intents": [],
+        "steps": ["Swipe up from the bottom of the screen and hold to see your recent apps", "Swipe away the apps you're not using, or tap the clear-all button"]
+      }
+    },
+    {
+      "id": "restart_phone",
+      "name": "Restart",
+      "tier": "guide",
+      "synonyms": ["restart", "reboot", "restart my phone", "restart the phone", "switch off and on", "turn it off and on"],
+      "actions": ["open"],
+      "note": "Apps can't restart the phone. Here's how:",
+      "guide": {
+        "intents": [],
+        "steps": ["Press and hold the power button (on some phones, power and volume up together)", "Tap Restart"]
+      }
+    },
+    {
+      "id": "phone_checkup",
+      "name": "Phone checkup",
+      "tier": "info",
+      "synonyms": ["slow", "slowly", "slower", "sluggish", "lag", "lags", "lagging", "laggy", "hang", "hangs", "hanging", "freeze", "freezes", "freezing", "frozen", "stuck", "not responding", "speed up", "faster", "hot", "heating", "overheating", "getting hot", "checkup", "check up", "health check", "phone health", "optimize", "optimise"],
+      "actions": ["show"],
+      "guide": {
+        "intents": [],
+        "steps": ["Restart the phone", "Free up storage if it's nearly full", "Close apps you're not using"]
+      }
+    },
+    {
+      "id": "screen_time",
+      "name": "Screen time",
+      "tier": "info",
+      "synonyms": ["screen time", "screentime", "phone usage", "app usage", "usage today", "time on my phone", "time on the phone", "hours on my phone", "how long have i used", "how long was i on", "most used apps", "most used app", "which apps do i use", "which app do i use", "digital wellbeing", "wellbeing", "well being", "addicted", "addiction", "too much time", "phone too much", "unlocks", "unlocked my phone", "how many times did i unlock", "doomscrolling", "doom scrolling", "spend on my phone", "spent on my phone"],
+      "actions": ["show"],
+      "guide": {
+        "intents": ["com.google.android.apps.wellbeing.action.APP_USAGE_DASHBOARD", "com.google.android.apps.wellbeing.action.HOME"],
+        "steps": ["Open Settings", "Tap Digital Wellbeing & parental controls", "Tap Dashboard"]
+      }
+    },
+    {
+      "id": "app_timer",
+      "name": "App timer",
+      "tier": "panel",
+      "panel": "com.google.android.apps.wellbeing.action.APP_USAGE_DASHBOARD",
+      "synonyms": ["app timer", "app timers", "app limit", "app limits", "time limit", "time limits", "limit apps", "limit my apps", "limit an app", "usage limit"],
+      "actions": ["open"],
+      "note": "Opening Digital Wellbeing, where you can set a daily timer for any app…",
+      "guide": {
+        "intents": ["com.google.android.apps.wellbeing.action.HOME"],
+        "steps": ["Open Settings", "Tap Digital Wellbeing & parental controls", "Tap Dashboard", "Tap the timer next to an app"]
+      }
+    },
+    {
+      "id": "bedtime_mode",
+      "name": "Bedtime mode",
+      "tier": "panel",
+      "panel": "com.google.android.apps.wellbeing.action.WIND_DOWN",
+      "synonyms": ["bedtime mode", "bedtime", "bed time", "wind down", "sleep mode", "sleep schedule", "grey screen at night", "grayscale at night"],
+      "actions": ["open"],
+      "note": "Opening Bedtime mode. It can silence your phone and turn the screen grey at night…",
+      "guide": {
+        "intents": ["com.google.android.apps.wellbeing.action.HOME", "android.settings.ZEN_MODE_SETTINGS"],
+        "steps": ["Open Settings", "Tap Digital Wellbeing & parental controls", "Tap Bedtime mode"]
+      }
+    },
+    {
+      "id": "focus_mode",
+      "name": "Focus mode",
+      "tier": "panel",
+      "panel": "com.google.android.apps.wellbeing.action.FOCUS_MODE",
+      "synonyms": ["pause apps", "pause distracting apps", "distracting apps", "distractions", "distracted", "study mode", "concentrate", "block apps"],
+      "actions": ["open"],
+      "note": "Opening Focus mode. It pauses the apps you pick until you're done…",
+      "guide": {
+        "intents": ["com.google.android.apps.wellbeing.action.HOME"],
+        "steps": ["Open Settings", "Tap Digital Wellbeing & parental controls", "Tap Focus mode"]
+      }
+    },
+    {
+      "id": "app_info",
+      "name": "App info",
+      "tier": "panel",
+      "panel": "android.settings.MANAGE_APPLICATIONS_SETTINGS",
+      "synonyms": ["app info", "installed apps", "manage apps", "all apps", "uninstall", "uninstall apps", "uninstall an app", "app storage"],
+      "actions": ["open"],
+      "note": "Opening your list of apps…",
+      "guide": {
+        "intents": ["android.settings.APPLICATION_SETTINGS"],
+        "steps": ["Open Settings", "Tap Apps", "Pick an app"]
+      }
+    },
+    {
+      "id": "battery_info",
+      "name": "Battery",
+      "tier": "info",
+      "synonyms": ["battery info", "battery health", "battery status", "battery level", "battery percentage", "battery percent", "battery temperature", "battery temp", "how much battery", "battery left", "charge level", "charging status", "battery cycles", "charge cycles"],
+      "actions": ["show"],
+      "guide": {
+        "intents": ["android.intent.action.POWER_USAGE_SUMMARY", "android.settings.BATTERY_SAVER_SETTINGS"],
+        "steps": ["Open Settings", "Tap Battery"]
+      }
+    },
+    {
+      "id": "software_update",
+      "name": "Software update",
+      "tier": "info",
+      "synonyms": ["software update", "system update", "os update", "android update", "update my phone", "update my android", "update the phone", "update phone", "phone update", "check for updates", "check for update", "check updates", "any updates", "new update", "latest update", "latest version", "up to date", "security patch", "security update", "firmware", "upgrade", "update", "updates"],
+      "actions": ["show"],
+      "note": "Kairo stays offline, so it can't look for new versions itself.",
+      "guide": {
+        "intents": ["com.bbk.updater.action.START_UPDATERACTIVITY", "android.settings.SYSTEM_UPDATE_SETTINGS", "android.settings.DEVICE_INFO_SETTINGS"],
+        "steps": ["Open Settings", "Tap System update", "Tap Check for updates"]
+      }
+    }
+  ]
+}

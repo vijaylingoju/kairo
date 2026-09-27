@@ -1,0 +1,150 @@
+package ai.kairo.gallery.settings
+
+/**
+ * IDs the Kotlin code refers to directly. Must match assets/settings_kb.json,
+ * which also holds the panel/guide-only settings that need no code.
+ */
+object SettingIds {
+    const val BRIGHTNESS = "brightness"
+    const val AUTO_BRIGHTNESS = "auto_brightness"
+    const val FONT_SIZE = "font_size"
+    const val SCREEN_TIMEOUT = "screen_timeout"
+    const val AUTO_ROTATE = "auto_rotate"
+    const val MEDIA_VOLUME = "media_volume"
+    const val RING_VOLUME = "ring_volume"
+    const val ALARM_VOLUME = "alarm_volume"
+    const val SILENT_MODE = "silent_mode"
+    const val VIBRATE_MODE = "vibrate_mode"
+    const val DND = "dnd"
+    const val FLASHLIGHT = "flashlight"
+    const val TOUCH_SOUNDS = "touch_sounds"
+    const val DARK_MODE = "dark_mode"
+    const val EYE_PROTECTION = "eye_protection"
+    const val WALLPAPER = "wallpaper"
+    const val BATTERY_SAVER = "battery_saver"
+    const val CLEAN_UP = "clean_up"
+    const val CLOSE_APPS = "close_apps"
+    const val RESTART_PHONE = "restart_phone"
+    const val APP_TIMER = "app_timer"
+    const val APP_INFO = "app_info"
+    const val BEDTIME_MODE = "bedtime_mode"
+    const val FOCUS_MODE = "focus_mode"
+
+    // Accessibility
+    const val TOUCH_VIBRATION = "touch_vibration"
+    const val COLOR_INVERSION = "color_inversion"
+    const val GRAYSCALE = "grayscale"
+    const val HIGH_CONTRAST_TEXT = "high_contrast_text"
+    const val BOLD_TEXT = "bold_text"
+    const val EXTRA_DIM = "extra_dim"
+    const val ANIMATIONS = "animations"
+    const val DISPLAY_SIZE = "display_size"
+    const val MAGNIFICATION = "magnification"
+
+    // Read-only (info tier)
+    const val DEVICE_INFO = "device_info"
+    const val STORAGE_INFO = "storage_info"
+    const val BATTERY_INFO = "battery_info"
+    const val SOFTWARE_UPDATE = "software_update"
+    const val PHONE_CHECKUP = "phone_checkup"
+    const val SCREEN_TIME = "screen_time"
+}
+
+object Actions {
+    const val INCREASE = "increase"
+    const val DECREASE = "decrease"
+    const val ON = "on"
+    const val OFF = "off"
+    const val OPEN = "open"
+    const val SHOW = "show"
+
+    // Wallpaper: which screen gets the photo
+    const val BOTH = "both"
+    const val HOME = "home"
+    const val LOCK = "lock"
+}
+
+/** An intent the UI should launch. Kept as data so the agent never needs an Activity. */
+data class IntentSpec(
+    val action: String,
+    /** Adds `package:<[targetPackage] or ours>` as data — required by e.g. ACTION_MANAGE_WRITE_SETTINGS. */
+    val withPackageUri: Boolean = false,
+    /** Tried in order if [action] doesn't resolve on this phone. */
+    val fallbacks: List<String> = emptyList(),
+    /** Another app the screen is about (its timer, its app info). Also sent as EXTRA_PACKAGE_NAME. */
+    val targetPackage: String? = null,
+)
+
+data class UndoToken(val settingId: String, val previousValue: String)
+
+data class Suggestion(
+    val settingId: String,
+    val action: String,
+    val title: String,
+    val reason: String,
+    val buttonLabel: String,
+    /** Passed to [SettingsAgent.apply], e.g. the app a timer suggestion is for. */
+    val value: String? = null,
+)
+
+sealed interface SettingsResponse {
+    val text: String
+
+    /** Plain answer / help text. */
+    data class Info(override val text: String) : SettingsResponse
+
+    /** A setting was changed directly. */
+    data class Done(override val text: String, val undo: UndoToken?) : SettingsResponse
+
+    /** Problem → ranked settings the user can apply with one tap. [rows]: what was checked, e.g. by the phone checkup. */
+    data class Suggestions(
+        override val text: String,
+        val items: List<Suggestion>,
+        val rows: List<Pair<String, String>> = emptyList(),
+    ) : SettingsResponse
+
+    /** We can't change it ourselves: show steps + deep link to the right screen. */
+    data class Guide(
+        override val text: String,
+        val steps: List<String>,
+        val open: IntentSpec?,
+    ) : SettingsResponse
+
+    /** Read-only answer about the phone: a headline, label/value rows and an optional button. */
+    data class Facts(
+        override val text: String,
+        val rows: List<Pair<String, String>>,
+        val open: IntentSpec?,
+        val openLabel: String,
+    ) : SettingsResponse
+
+    /** Gallery photos to pick a wallpaper from. Nothing changes until the user taps one. */
+    data class ChoosePhoto(
+        override val text: String,
+        val photoUris: List<String>,
+        /** [Actions.BOTH], [Actions.HOME] or [Actions.LOCK]. */
+        val screen: String,
+    ) : SettingsResponse
+
+    /** System panel / dialog (Wi-Fi, internet, NFC...). The UI auto-launches it. */
+    data class OpenPanel(override val text: String, val open: IntentSpec) : SettingsResponse
+
+    /** A one-time permission grant is needed before the action can run. */
+    data class NeedsPermission(
+        override val text: String,
+        val grant: IntentSpec,
+        val retrySettingId: String,
+        val retryAction: String,
+    ) : SettingsResponse
+}
+
+/** Single entry point used by the in-app chat, the floating bubble, the QS tile, etc. */
+interface SettingsAgent {
+    suspend fun handle(query: String): SettingsResponse
+
+    /** [value] is the extra detail some settings need, e.g. the photo to look for ("beach") for the wallpaper. */
+    suspend fun apply(settingId: String, action: String, value: String? = null): SettingsResponse
+    suspend fun setWallpaper(photoUri: String, screen: String): SettingsResponse
+    suspend fun undo(token: UndoToken): SettingsResponse
+    fun close() {}
+}

@@ -30,6 +30,48 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
+    <!-- Floating ball over other apps: "Display over other apps", granted by the user on a system screen, and a
+         foreground service to keep the ball alive (Android stops ordinary background services within a minute). -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <!-- Settings assistant: brightness, font size... Granted by the user on a system screen. -->
+    <uses-permission
+        android:name="android.permission.WRITE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+    <!-- Settings assistant: silent mode + Do Not Disturb. Granted by the user on a system screen. -->
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+    <!-- Settings assistant: wallpaper from the gallery. Normal permission, granted at install. -->
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
+    <!-- Settings assistant: color inversion, grayscale, bold text... Users can't grant this; only
+         `adb shell pm grant` can (demo phones). Without it those settings show guide steps instead. -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+    <!-- Settings assistant: screen time and per-app cache sizes. Granted by the user on the Usage access screen. -->
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- Package visibility (Android 11+). -->
+    <queries>
+        <!-- RecognizerIntent (voice input) -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <!-- Settings assistant: its version is the "Google Play system update" date. -->
+        <package android:name="com.google.android.modulemetadata" />
+        <!-- Settings assistant: app names in screen time, cache sizes per app, and which app is the home screen. -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
+    </queries>
+
     <application
         android:name=".KairoApp"
         android:label="Kairo Gallery"
@@ -51,6 +93,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Floating ball. No standard foreground-service type fits an assistant overlay, hence specialUse. -->
+        <service
+            android:name=".assistant.ball.BallService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="On-device assistant shown as a floating button over other apps" />
+        </service>
 
         <!-- WorkManager foreground service needs a declared type on Android 14+ -->
         <service

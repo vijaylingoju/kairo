@@ -37,12 +37,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -69,7 +69,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import ai.kairo.gallery.assistant.ball.BallService
 import ai.kairo.gallery.data.IndexedImage
+import ai.kairo.gallery.data.Prefs
 import ai.kairo.gallery.index.Indexer
 import ai.kairo.gallery.ui.gallery.GalleryApp
 import ai.kairo.gallery.ui.gallery.KairoTheme
@@ -82,6 +84,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             // The user-facing gallery is the default; the wrench icon opens this developer screen.
             var devMode by rememberSaveable { mutableStateOf(false) }
+            // Opened by the floating ball: show the gallery, which then goes where the ball asked.
+            val request by AppNavigation.pending.collectAsState()
+            LaunchedEffect(request) { if (request != null) devMode = false }
             MaterialTheme {
                 val vm: MainViewModel = viewModel()
                 var hasPerm by remember {
@@ -119,6 +124,18 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        BallService.appVisible.value = true
+        // Also covers coming back from the "Display over other apps" screen.
+        BallService.startIfEnabled(this)
+    }
+
+    override fun onPause() {
+        BallService.appVisible.value = false
+        super.onPause()
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -135,6 +152,9 @@ fun KairoScreen(vm: MainViewModel, hasPerm: Boolean, onGrant: () -> Unit, onClos
     var query by rememberSaveable { mutableStateOf("") }
     var selected by remember { mutableStateOf<IndexedImage?>(null) }
     var confirmClear by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val ballOn by BallService.running.collectAsState()
+    var keepReady by remember { mutableStateOf(Prefs.keepModelReady(context)) }
 
     Scaffold(
         topBar = {
@@ -182,6 +202,26 @@ fun KairoScreen(vm: MainViewModel, hasPerm: Boolean, onGrant: () -> Unit, onClos
                 Switch(checked = watch, onCheckedChange = { vm.setWatchScreenshots(it) })
                 Spacer(Modifier.width(8.dp))
                 Text("Also index new screenshots", style = MaterialTheme.typography.bodyMedium)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Switch(checked = ballOn, onCheckedChange = { on ->
+                    Prefs.setBallEnabled(context, on)
+                    when {
+                        !on -> BallService.stop(context)
+                        BallService.canShow(context) -> BallService.startIfEnabled(context)
+                        else -> BallService.askPermission(context)
+                    }
+                })
+                Spacer(Modifier.width(8.dp))
+                Text("Floating ball over other apps", style = MaterialTheme.typography.bodyMedium)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Switch(checked = keepReady, onCheckedChange = { on ->
+                    Prefs.setKeepModelReady(context, on)
+                    keepReady = on
+                })
+                Spacer(Modifier.width(8.dp))
+                Text("Keep Kairo ready (Gemma stays loaded; for demos)", style = MaterialTheme.typography.bodyMedium)
             }
 
             OutlinedTextField(

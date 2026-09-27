@@ -44,7 +44,9 @@ Evaluation on an iQOO 15 (41 scenarios): **39/41 pass, 98% precision**. See [Rep
 | `llm/Llm.kt`, `llm/Prompts.kt` | Gemma loader (auto-picks E4B > E2B), bounded generation, prompts |
 | `data/IndexDb.kt` | SQLite + FTS4 + CLIP embeddings |
 | `search/SearchEngine.kt` | Question → filter → evidence → ranked results + answer |
-| `ui/gallery/` | **User/demo UI**: OriginOS-style gallery (day-grouped photos, smart albums), smart search with AI animations and answer cards, full-screen viewer |
+| `ui/gallery/` | **User/demo UI**: OriginOS-style gallery (day-grouped photos, smart albums), smart search with AI animations and answer cards, full-screen viewer; tabs Photos · Albums · Kairo |
+| `assistant/` | **Kairo tab**: one chat for photos and settings. `IntentRouter` decides which one answers (rules, then Gemma); `AssistantSession` holds the conversation |
+| `settings/` | Settings assistant: knowledge base, keyword + Gemma agents, the code that changes settings (see [docs/settings-progress](docs/settings-progress/README.md)) |
 | `ui/MainActivity.kt` | Routes between the gallery (default) and the developer screen (🔧 icon) |
 | `ui/MainViewModel.kt` | Shared state: photos, indexing status, search results, recent searches |
 | `app/src/debug/…/EvalReceiver.kt` | Debug-only adb hooks for the evaluation harness |
@@ -58,4 +60,4 @@ Evaluation on an iQOO 15 (41 scenarios): **39/41 pass, 98% precision**. See [Rep
 - [docs/KAIRO_CHECKLIST.md](docs/KAIRO_CHECKLIST.md): what's done and what's next
 - [docs/reports/](docs/reports/): evaluation reports
 
-Logcat filters: `KairoIndexer`, `KairoLlm`, `KairoClip`, `KairoSearch`, `KairoWorker`, `KairoEval`.
+Logcat filters: `KairoIndexer`, `KairoLlm`, `KairoClip`, `KairoSearch`, `KairoWorker`, `KairoEval`, `KairoAssistant`, `KairoSettingsLlm`.

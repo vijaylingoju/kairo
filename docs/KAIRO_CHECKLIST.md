@@ -132,7 +132,7 @@ Question → rules (instant) + Gemma filter (categories, keywords, wanted field,
 ## 7. Unified bubble + voice ⬜
 
 - [ ] ⬜ ⭐ Floating bubble overlay (`SYSTEM_ALERT_WINDOW`), tap → search box
-- [ ] ⬜ Sends each request to photos or settings (rules + Gemma)
+- [x] Sends each request to photos or settings (rules + Gemma), in the Kairo tab (`assistant/`)
 - [ ] ⬜ Offline speech-to-text (Android on-device `SpeechRecognizer`, `EXTRA_PREFER_OFFLINE`)
 - [ ] ⬜ Show results inside the bubble (thumbnails + answer card)
 

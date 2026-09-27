@@ -80,7 +80,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         val q = query.trim()
-        _recent.value = (listOf(q) + _recent.value.filter { !it.equals(q, ignoreCase = true) }).take(6)
+        addRecent(q)
         _result.value = null
         viewModelScope.launch {
             _searching.value = true
@@ -92,9 +92,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Shows a search that already ran elsewhere (the Kairo chat's "See all") without running it again. */
+    fun showResult(result: SearchResult) {
+        addRecent(result.query)
+        _result.value = result
+    }
+
     private val _recent = MutableStateFlow<List<String>>(emptyList())
     /** Recent searches for the smart-search screen (this session only, never stored). */
     val recent: StateFlow<List<String>> = _recent
+
+    private fun addRecent(q: String) {
+        _recent.value = (listOf(q) + _recent.value.filter { !it.equals(q, ignoreCase = true) }).take(6)
+    }
 
     fun clearRecent() {
         _recent.value = emptyList()

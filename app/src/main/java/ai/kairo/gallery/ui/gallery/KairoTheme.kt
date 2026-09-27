@@ -72,11 +72,12 @@ private val KairoTypography = Typography(
 @Composable
 fun KairoTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
     val c = if (dark) Dark else Light
-    val scheme = if (dark) {
-        darkColorScheme(primary = c.accent, background = c.background, surface = c.background, onBackground = c.text, onSurface = c.text)
-    } else {
-        lightColorScheme(primary = c.accent, background = c.background, surface = c.background, onBackground = c.text, onSurface = c.text)
-    }
+    val scheme = (if (dark) darkColorScheme() else lightColorScheme()).copy(
+        primary = c.accent, background = c.background, surface = c.background, onBackground = c.text, onSurface = c.text,
+        // Material buttons in the Kairo chat (tonal, outlined) in Kairo's greys instead of Material's purple tints.
+        secondaryContainer = c.surfaceHigh, onSecondaryContainer = c.text, surfaceContainerHigh = c.surface,
+        onSurfaceVariant = c.textSecondary, outline = c.textSecondary, outlineVariant = c.divider,
+    )
     androidx.compose.runtime.CompositionLocalProvider(LocalKairoColors provides c) {
         MaterialTheme(colorScheme = scheme, typography = KairoTypography, content = content)
     }

@@ -92,4 +92,6 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.7.0")
 
     testImplementation("junit:junit:4.13.2")
+    // Real org.json for JVM tests (android.jar only has stubs)
+    testImplementation("org.json:json:20240303")
 }

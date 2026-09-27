@@ -90,6 +90,10 @@ object Llm {
     @Volatile var lastBench: BenchmarkInfo? = null
         private set
 
+    /** [SystemClock.elapsedRealtime] when the model was last loaded or used; for unloading it when idle. */
+    @Volatile var lastUsedAt = 0L
+        private set
+
     @Volatile private var engine: Engine? = null
     private val loadLock = Mutex()
     private val runLock = Mutex()
@@ -116,8 +120,11 @@ object Llm {
         engine ?: loadLock.withLock { engine ?: load(ctx.applicationContext) }
     }
 
-    /** Drops the loaded engine so the next call reloads it with the current [LlmTuning]. */
-    suspend fun reload() {
+    /**
+     * Frees the model's memory (the floating ball does this after a few idle minutes). The next call loads it
+     * again, with the current [LlmTuning]. Waits for a running generation to finish first.
+     */
+    suspend fun unload() {
         loadLock.withLock {
             runLock.withLock {
                 engine?.close()
@@ -165,6 +172,7 @@ object Llm {
                 val e = Engine(config())
                 e.initialize()
                 engine = e
+                lastUsedAt = SystemClock.elapsedRealtime()
                 _state.value = "${file.nameWithoutExtension} ready on $name (loaded in ${System.currentTimeMillis() - t0} ms)"
                 Log.i(TAG, "${_state.value} [$LlmTuning]")
                 return e
@@ -227,6 +235,7 @@ object Llm {
                     }
                 }
                 val tEnd = SystemClock.elapsedRealtime()
+                lastUsedAt = tEnd
                 // Where the fixed cost per call goes: conversation set-up, generation, tear-down.
                 Log.i(TAG, "timing create=${tCreated - tStart}ms send=${tSent - tCreated}ms close=${tEnd - tSent}ms")
                 result

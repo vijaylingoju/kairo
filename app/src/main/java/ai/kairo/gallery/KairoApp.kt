@@ -17,6 +17,14 @@ class KairoApp : Application() {
                 NotificationManager.IMPORTANCE_LOW
             )
         )
+        // Required while the floating ball runs; minimal, so it stays out of the status bar.
+        nm.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_BALL,
+                "Floating ball",
+                NotificationManager.IMPORTANCE_MIN
+            )
+        )
         // Debug A/B overrides (never written in normal use).
         LlmTuning.loadOverrides(this)
         // Make sure the model folder exists so `adb push` has a target.
@@ -27,5 +35,6 @@ class KairoApp : Application() {
 
     companion object {
         const val CHANNEL_INDEX = "kairo_index"
+        const val CHANNEL_BALL = "kairo_ball"
     }
 }

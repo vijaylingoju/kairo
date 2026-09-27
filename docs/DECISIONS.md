@@ -95,6 +95,16 @@ Status: ✅ in place · 🔄 changed later · ⏳ in progress · 🅿️ parked
 | D49 | **Bundle only the V81 (SM8850) NPU libraries**, arm64 only, no QNN DSP/GPU backends | The full Qualcomm package is 67 MB for 6 chip generations | ✅ +45 MB APK |
 | D50 | **Don't commit Qualcomm's `libQnnIr.so` / `libQnnSaver.so`**; fetch them from the public QAIRT SDK with range requests (`tools/fetch_qnn_libs.ps1`, ~6 MB of 2.2 GB) | They aren't on Maven and are Qualcomm SDK binaries; keep the public repo clean. Without them the app falls back to GPU | ✅ |
 
+## Phase 9: One assistant for photos and settings (2026-09-27)
+
+| # | Decision | Why | Alternatives rejected | Status |
+|---|---|---|---|---|
+| D51 | **A router in front of the two features; neither feature changes.** Rules first; unclear requests ask Gemma for one word (`gallery` / `settings` / `none`, ~0.7 s); after that the user picks with two buttons | Both features stay as tested (41-scenario eval, 94-phrase settings test); rule-matched requests still skip Gemma | One big prompt with both formats (longer, slower, a small model mixes up the JSON shapes, loses the fast paths) | ✅ 47-phrase `IntentRouterTest` |
+| D52 | When a request has both photo and settings words, **a word that changes something ("set", "turn") means settings, anything else means photos**; the wallpaper is a setting that uses the gallery | Settings synonyms appear in photo requests: "bright sunset photos", "screenshot of the wifi password", "black and white photos", "landscape photos" | Settings keyword match alone | ✅ |
+| D53 | **The chat is the gallery's third tab (Photos · Albums · Kairo)**, not a separate app or activity. Photo answers show thumbnails in the chat; "See all" opens the gallery search with the same result | One app, one way in for the floating ball; the gallery stays the place to browse photos | Two launcher icons from one APK (feels like two apps); keeping the chat behind the developer screen | ✅ tested on the iQOO |
+| D54 | **The conversation lives in `AssistantSession`** (process-wide), not in a ViewModel | The floating ball can hand a question and its answer to the Kairo tab without asking Gemma again | Passing the reply through Intent extras (not Parcelable) or running the query again (2–5 s) | ✅ |
+| D55 | Floating ball: **load Gemma when the ball is tapped, unload after ~5 min unused**; "Keep Kairo ready" switch for the demo | Both models take ~2 GB; a foreground service keeps the process important, so Android would close the user's other apps first | Always loaded; load per question (+5–9 s each time) | ⏳ next step |
+
 ---
 
 ## Open decisions (to make next)

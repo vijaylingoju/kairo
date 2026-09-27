@@ -73,7 +73,7 @@ fun AiSparkle(modifier: Modifier = Modifier, size: Dp = 20.dp, animated: Boolean
 }
 
 /** Classic four-point sparkle ✦: long points on the axes, a narrow waist on the diagonals. */
-private fun star(c: Offset, r: Float): Path = Path().apply {
+internal fun star(c: Offset, r: Float): Path = Path().apply {
     val inner = r * 0.26f
     for (i in 0 until 8) {
         val angle = Math.toRadians(i * 45.0 - 90.0)
