@@ -13,7 +13,7 @@ Legend: ✅ done · 🟡 partly done / needs tuning · ⬜ not started · ⭐ ne
 |---|---|---|---|---|
 | Find new photos | Android MediaStore + WorkManager (starts when the gallery changes) | CPU | instant | – |
 | Read image text | **Google ML Kit Text Recognition** (Latin, bundled offline model) | **CPU** | not measured yet | `images.ocr_text` |
-| Visual fingerprint | **OpenAI CLIP ViT-B/16** (Qualcomm AI Hub TFLite, float, 600 MB) on **LiteRT 2.2** | **GPU + CPU** (4 threads) | ~0.4–0.7 s / photo | `embeddings` table (512 floats per photo) |
+| Visual fingerprint | **OpenAI CLIP ViT-B/16** (Qualcomm AI Hub TFLite, float, 600 MB) on **LiteRT 2.2** | **NPU** (Hexagon) for photos; GPU + CPU for search text | 14 ms / photo on the iQOO 15 NPU (was ~0.4–0.7 s on the 13R GPU + CPU) | `embeddings` table (512 floats per photo) |
 | Understand the photo | **Gemma 4 E4B** (`.litertlm`, 3.66 GB) on **LiteRT-LM 0.17**. Was E2B (2.6 GB) on the OnePlus 13R | **GPU** (falls back to CPU) | E2B: ~3–4 s / photo; E4B on iQOO 15: to be measured | `images.category / description / tags / fields` |
 | Check the numbers | Regex + checks against the OCR text (`FieldExtractor`) | CPU | instant | `images.fields_json` |
 | Split question into words | Kotlin port of CLIP's tokenizer | CPU | instant | vocab file in `assets/` |
@@ -25,7 +25,7 @@ Legend: ✅ done · 🟡 partly done / needs tuning · ⬜ not started · ⭐ ne
 > 1. First try: **GPU only**. This failed ("Failed to compile model"), because the GPU can't run some of the text part's integer operations.
 > 2. The app fell back to **CPU**, one thread: about **2 s per photo**.
 > 3. Now: **GPU + CPU together** (the GPU runs what it can, the CPU runs the rest, 4 CPU threads): about **0.4–0.7 s per photo**, roughly 3–4× faster.
-> 4. Next: the **NPU** (Hexagon). Qualcomm quotes about **22 ms per photo** for this model there.
+> 4. **Now (2026-09-27): photos on the NPU (Hexagon): about 14 ms per photo**, 7× faster than GPU + CPU (99 ms on a cool phone). Search text stays on GPU + CPU (the NPU gets it wrong, see Report #5).
 >
 > Note: **OCR runs on CPU, not GPU.** ML Kit's bundled text model runs on the CPU. The GPU is used by Gemma and, partly, by CLIP.
 
@@ -96,7 +96,8 @@ Question → rules (instant) + Gemma filter (categories, keywords, wanted field,
 - [ ] 🟡 Tune the cut-offs (`MIN_SIM 0.20`, `REL_GAP 0.04`) on 50+ varied photos
 - [ ] 🟡 Screenshots with black bars score higher than they should, because the center crop sees mostly black. Crop away letterboxing before running CLIP
 - [ ] ⬜ Run a 10-query test set and record results (sunset, flowers, food, ice cream, burgers, person, tickets, Aadhaar, bus, dog)
-- [ ] ⬜ ⭐ **Move CLIP to the NPU** (Qualcomm build of the model, or LiteRT NPU with the Qualcomm dispatch library) → about 22 ms per photo, and backs up the "NPU" claim on slides 5 and 8
+- [x] ✅ ⭐ **CLIP photos on the NPU**: 99 → 14 ms per photo, real visual pass 2.3 → 0.9 s for 20 photos, vectors 0.99999 identical ([Report #5](reports/REPORT-05_2026-09-27_0425-IST_clip-on-npu.md))
+- [ ] ⬜ Overlap photo decoding (~25 ms) with the NPU run (14 ms) in the visual pass → about 1.6× more (41 → ~25 ms per photo)
 - [ ] ⬜ Smaller CLIP: an 8-bit build, or split image and text models (MobileCLIP-S2), so the model is ~150 MB instead of 600 MB and there's no wasted text-part work per photo
 - [ ] ⬜ Search inside SQL / keep embeddings in memory, so search stays fast at 10k photos (today every search loads all rows)
 - [ ] ⬜ Index the whole gallery, not only `Pictures/Kairo` (remove the folder filter + run on the charger at night)
@@ -171,7 +172,7 @@ The current screen is a developer screen. Changes for the demo:
 - [ ] ⬜ Curate ~40 demo photos (animals, sunsets, food, people, 5 tickets, fake/masked ID cards)
 - [ ] ⬜ Script: airplane mode on → "my PAN number" → "movie tickets" → "sunset at the lake with my dog" → take a new screenshot, and it's found live → "turn on dark mode"
 - [ ] ⬜ Record a backup video of the demo
-- [ ] ⬜ Fix the slides: "NPU" wording (until CLIP runs on the NPU), and add the document-answer feature (it isn't in the deck)
+- [ ] ⬜ Fix the slides: the "NPU" claim is now true for CLIP photo indexing (Gemma and search text run on the GPU); add the document-answer feature (it isn't in the deck)
 - [ ] ⬜ Check it on the iQOO 15 if one is available (the deck names it)
 
 ---
@@ -180,7 +181,8 @@ The current screen is a developer screen. Changes for the demo:
 
 | Issue | Impact | Fix |
 |---|---|---|
-| CLIP can't run fully on the GPU | ~0.5 s per photo instead of ms | NPU build or a split/quantised model |
+| ~~CLIP can't run fully on the GPU~~ | fixed: photos run on the NPU (14 ms) | – |
+| CLIP text on the NPU is wrong (fp16 ARG_MAX) | search text stays on GPU + CPU (~90 ms) | int-safe export or split text model |
 | One CLIP file for image + text | each image run also runs the text part | split models (MobileCLIP) |
 | Search loads every row + embedding | slow at thousands of photos | cache in memory / filter in SQL |
 | Phone storage 98% full (~4.5 GB free) | model pushes may fail | delete Gemma from Edge Gallery (2.6 GB) |

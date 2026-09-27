@@ -123,12 +123,14 @@ object Indexer {
         if (todo.isEmpty()) return
 
         _status.value = Status(running = true, total = todo.size, message = "Visual index")
+        val passStart = SystemClock.elapsedRealtime()
+        val loadedBefore = Clip.isLoaded()
         for ((i, item) in todo.withIndex()) {
             currentCoroutineContext().ensureActive()  // stop promptly when "Clear all data" cancels the run
             _status.value = _status.value.copy(done = i, current = item.name)
             val t0 = SystemClock.elapsedRealtime()
             try {
-                val bmp = ClipCrop.forClip(decode(ctx, item.uri, 512), isScreenshot(item))
+                val bmp = clipInput(ctx, item)
                 val tDecode = SystemClock.elapsedRealtime() - t0
                 db.setEmbedding(item.id, Clip.embedImage(ctx, bmp))
                 Log.d(TAG, "decode ${item.name} $tDecode ms")
@@ -144,7 +146,14 @@ object Indexer {
             _status.value = _status.value.copy(done = i + 1, lastMs = ms)
             Log.i(TAG, "Embedded ${item.name} in $ms ms")
         }
+        val total = SystemClock.elapsedRealtime() - passStart
+        val load = if (loadedBefore) "" else " (includes CLIP load ${Clip.loadMs} ms)"
+        Log.i(TAG, "Visual pass: ${todo.size} photos in $total ms on ${Clip.accelerator}$load")
     }
+
+    /** The bitmap CLIP sees for a photo: 512 px decode, status/nav bars and flat borders cropped. */
+    internal fun clipInput(ctx: Context, item: MediaItem): Bitmap =
+        ClipCrop.forClip(decode(ctx, item.uri, 512), isScreenshot(item))
 
     private fun placeholder(item: MediaItem) = IndexedImage(
         mediaId = item.id, uri = item.uri.toString(), name = item.name, folder = item.folder,
@@ -219,6 +228,9 @@ object Indexer {
             val tags = json?.optJSONArray("tags")?.let { arr ->
                 (0 until arr.length()).map { arr.optString(it).lowercase().trim() }.filter { it.isNotEmpty() }
             } ?: emptyList()
+            val objects = json?.optJSONArray("objects")?.let { arr ->
+                (0 until arr.length()).map { arr.optString(it).lowercase().trim() }.filter { it.isNotEmpty() }
+            } ?: emptyList()
             val description = json?.optString("description")?.takeIf { it.isNotBlank() }
                 ?: ocr.lineSequence().firstOrNull { it.isNotBlank() }?.take(120)
                 ?: category.replace('_', ' ')
@@ -240,6 +252,7 @@ object Indexer {
                 status = if (json != null) "done" else "ocr_only",
                 error = llmError,
                 indexMs = SystemClock.elapsedRealtime() - t0,
+                objects = objects,
             )
         } catch (t: Throwable) {
             Log.e(TAG, "Indexing failed for ${item.name}", t)
@@ -257,7 +270,7 @@ object Indexer {
     private fun isScreenshot(item: MediaItem): Boolean =
         item.name.startsWith("Screenshot", ignoreCase = true) || "Screenshots" in item.folder
 
-    private fun decode(ctx: Context, uri: Uri, maxSide: Int): Bitmap {
+    internal fun decode(ctx: Context, uri: Uri, maxSide: Int): Bitmap {
         val source = ImageDecoder.createSource(ctx.contentResolver, uri)
         return ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
             val w = info.size.width
@@ -268,14 +281,14 @@ object Indexer {
         }
     }
 
-    private fun scaleDown(bmp: Bitmap, maxSide: Int): Bitmap {
+    internal fun scaleDown(bmp: Bitmap, maxSide: Int): Bitmap {
         val longest = max(bmp.width, bmp.height)
         if (longest <= maxSide) return bmp
         val scale = maxSide.toFloat() / longest
         return Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt(), (bmp.height * scale).toInt(), true)
     }
 
-    private fun toJpeg(bmp: Bitmap): ByteArray {
+    internal fun toJpeg(bmp: Bitmap): ByteArray {
         val out = ByteArrayOutputStream()
         bmp.compress(Bitmap.CompressFormat.JPEG, 90, out)
         return out.toByteArray()
